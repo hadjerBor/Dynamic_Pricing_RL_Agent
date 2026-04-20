@@ -1,0 +1,122 @@
+[
+  {
+    "id": 20725,
+    "name": "Electronics Product 1",
+    "category": "Electronics",
+    "base_price": 1.98,
+    "elasticity": -0.587,
+    "base_demand": 70.4,
+    "price_min": 0.99,
+    "price_max": 3.96,
+    "noise_std": 0.073,
+    "timeseries_file": "data/processed/20725_timeseries.csv"
+  },
+  {
+    "id": 20727,
+    "name": "Clothing Product 2",
+    "category": "Clothing",
+    "base_price": 1.95,
+    "elasticity": -0.102,
+    "base_demand": 50.5,
+    "price_min": 0.97,
+    "price_max": 3.89,
+    "noise_std": 0.052,
+    "timeseries_file": "data/processed/20727_timeseries.csv"
+  },
+  {
+    "id": 20914,
+    "name": "Home & Garden Product 3",
+    "category": "Home & Garden",
+    "base_price": 3.19,
+    "elasticity": -0.786,
+    "base_demand": 43.2,
+    "price_min": 1.59,
+    "price_max": 6.37,
+    "noise_std": 0.064,
+    "timeseries_file": "data/processed/20914_timeseries.csv"
+  },
+  {
+    "id": 21034,
+    "name": "Books Product 4",
+    "category": "Books",
+    "base_price": 0.95,
+    "elasticity": -0.1,
+    "base_demand": 8.2,
+    "price_min": 0.47,
+    "price_max": 1.9,
+    "noise_std": 0.087,
+    "timeseries_file": "data/processed/21034_timeseries.csv"
+  },
+  {
+    "id": 21080,
+    "name": "Toys Product 5",
+    "category": "Toys",
+    "base_price": 0.98,
+    "elasticity": -0.324,
+    "base_demand": 62.0,
+    "price_min": 0.49,
+    "price_max": 1.95,
+    "noise_std": 0.141,
+    "timeseries_file": "data/processed/21080_timeseries.csv"
+  },
+  {
+    "id": 21212,
+    "name": "Electronics Product 6",
+    "category": "Electronics",
+    "base_price": 0.67,
+    "elasticity": -1.123,
+    "base_demand": 197.8,
+    "price_min": 0.33,
+    "price_max": 1.34,
+    "noise_std": 0.141,
+    "timeseries_file": "data/processed/21212_timeseries.csv"
+  },
+  {
+    "id": 21232,
+    "name": "Clothing Product 7",
+    "category": "Clothing",
+    "base_price": 1.48,
+    "elasticity": -0.549,
+    "base_demand": 89.5,
+    "price_min": 0.74,
+    "price_max": 2.95,
+    "noise_std": 0.136,
+    "timeseries_file": "data/processed/21232_timeseries.csv"
+  },
+  {
+    "id": 21754,
+    "name": "Home & Garden Product 8",
+    "category": "Home & Garden",
+    "base_price": 6.61,
+    "elasticity": -0.682,
+    "base_demand": 16.9,
+    "price_min": 3.3,
+    "price_max": 13.21,
+    "noise_std": 0.112,
+    "timeseries_file": "data/processed/21754_timeseries.csv"
+  },
+  {
+    "id": 21755,
+    "name": "Books Product 9",
+    "category": "Books",
+    "base_price": 6.75,
+    "elasticity": -0.322,
+    "base_demand": 12.7,
+    "price_min": 3.37,
+    "price_max": 13.5,
+    "noise_std": 0.127,
+    "timeseries_file": "data/processed/21755_timeseries.csv"
+  },
+  {
+    "id": 21931,
+    "name": "Toys Product 10",
+    "category": "Toys",
+    "base_price": 2.31,
+    "elasticity": -0.1,
+    "base_demand": 53.2,
+    "price_min": 1.16,
+    "price_max": 4.62,
+    "noise_std": 0.171,
+    "timeseries_file": "data/processed/21931_timeseries.csv"
+  }
+]
