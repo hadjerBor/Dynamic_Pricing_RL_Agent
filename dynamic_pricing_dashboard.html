@@ -1,1707 +1,1175 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Dynamic Pricing RL Agent</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Space+Grotesk:wght@300;500;700&display=swap" rel="stylesheet" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dynamic Pricing RL · Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
 <style>
-  :root {
-    --bg: #0a0c10;
-    --surface: #111318;
-    --card: #161a22;
-    --border: #252b38;
-    --accent: #00e5ff;
-    --accent2: #7c3aed;
-    --green: #22c55e;
-    --red: #ef4444;
-    --yellow: #f59e0b;
-    --text: #e2e8f0;
-    --muted: #64748b;
-    --mono: 'IBM Plex Mono', monospace;
-    --sans: 'Space Grotesk', sans-serif;
-  }
+/* ── CSS Reset & Variables ───────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:        #0a0a0f;
+  --bg2:       #111118;
+  --bg3:       #18181f;
+  --border:    rgba(255,255,255,0.08);
+  --border2:   rgba(255,255,255,0.14);
+  --text:      #e8e8f0;
+  --muted:     #6b6b80;
+  --accent:    #7c5cfc;
+  --accent2:   #c084fc;
+  --green:     #34d399;
+  --amber:     #fbbf24;
+  --red:       #f87171;
+  --blue:      #60a5fa;
+  --cyan:      #22d3ee;
+  --font-head: 'Syne', sans-serif;
+  --font-mono: 'Space Mono', monospace;
+  --r:         8px;
+  --r2:        12px;
+  --trans:     all 0.18s ease;
+}
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
 
-  /* Grid noise texture overlay */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image:
-      linear-gradient(rgba(0,229,255,0.02) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0,229,255,0.02) 1px, transparent 1px);
-    background-size: 40px 40px;
-    pointer-events: none;
-    z-index: 0;
-  }
+/* ── Grid noise texture overlay ─────────────────────────────────────────── */
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: 0;
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(255,255,255,0.015) 40px),
+    repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(255,255,255,0.015) 40px);
+  pointer-events: none;
+}
 
-  .shell { position: relative; z-index: 1; }
+/* ── Header ──────────────────────────────────────────────────────────────── */
+.header {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(10,10,15,0.92);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 60px;
+}
+.logo {
+  font-family: var(--font-head);
+  font-weight: 800; font-size: 16px;
+  letter-spacing: -0.3px;
+  display: flex; align-items: center; gap: 10px;
+}
+.logo-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.6; transform: scale(0.85); }
+}
+.header-badge {
+  font-size: 11px; color: var(--muted);
+  border: 1px solid var(--border);
+  padding: 3px 10px; border-radius: 20px;
+}
 
-  /* ── HEADER ── */
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 18px 32px;
-    border-bottom: 1px solid var(--border);
-    background: rgba(10,12,16,0.9);
-    backdrop-filter: blur(10px);
-    position: sticky;
-    top: 0;
-    z-index: 100;
-  }
-  .logo {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .logo-icon {
-    width: 32px; height: 32px;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 16px;
-  }
-  .logo-text {
-    font-family: var(--mono);
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--accent);
-    letter-spacing: 0.08em;
-  }
-  .logo-sub {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--muted);
-    letter-spacing: 0.05em;
-  }
-  .header-status {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--green);
-  }
-  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+.layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: calc(100vh - 60px);
+  position: relative; z-index: 1;
+}
 
-  /* ── MAIN LAYOUT ── */
-  .main {
-    display: grid;
-    grid-template-columns: 260px 1fr;
-    min-height: calc(100vh - 61px);
-  }
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+.sidebar {
+  border-right: 1px solid var(--border);
+  padding: 24px 0;
+  position: sticky; top: 60px;
+  height: calc(100vh - 60px);
+  overflow-y: auto;
+}
+.sidebar::-webkit-scrollbar { width: 3px; }
+.sidebar::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
-  /* ── SIDEBAR ── */
-  .sidebar {
-    border-right: 1px solid var(--border);
-    padding: 24px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .sidebar-section-label {
-    font-family: var(--mono);
-    font-size: 10px;
-    color: var(--muted);
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    padding: 12px 8px 4px;
-  }
-  .nav-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--muted);
-    transition: all 0.15s;
-    border: 1px solid transparent;
-  }
-  .nav-item:hover { color: var(--text); background: var(--card); }
-  .nav-item.active {
-    color: var(--accent);
-    background: rgba(0,229,255,0.07);
-    border-color: rgba(0,229,255,0.2);
-  }
-  .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+.nav-section { padding: 0 16px 8px; }
+.nav-label {
+  font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--muted); padding: 4px 8px 10px;
+  font-family: var(--font-head);
+}
+.nav-btn {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 9px 12px;
+  border: none; background: none;
+  color: var(--muted); font-family: var(--font-mono); font-size: 12px;
+  border-radius: var(--r); cursor: pointer;
+  transition: var(--trans);
+  text-align: left;
+}
+.nav-btn:hover  { color: var(--text); background: rgba(255,255,255,0.04); }
+.nav-btn.active { color: var(--text); background: rgba(124,92,252,0.15); }
+.nav-btn.active .nav-icon { color: var(--accent); }
+.nav-icon { font-size: 14px; width: 18px; text-align: center; }
 
-  /* Config section in sidebar */
-  .config-box {
-    margin-top: auto;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 14px;
-    background: var(--card);
-  }
-  .config-box h4 {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--muted);
-    letter-spacing: 0.1em;
-    margin-bottom: 12px;
-  }
-  .cfg-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-  }
-  .cfg-label { font-size: 12px; color: var(--muted); }
-  .cfg-val {
-    font-family: var(--mono);
-    font-size: 12px;
-    color: var(--accent);
-    background: rgba(0,229,255,0.08);
-    padding: 2px 8px;
-    border-radius: 4px;
-  }
+.nav-sep { height: 1px; background: var(--border); margin: 12px 16px; }
 
-  /* ── CONTENT ── */
-  .content {
-    padding: 28px 32px;
-    display: flex;
-    flex-direction: column;
-    gap: 24px;
-  }
+/* Product list */
+.product-list { padding: 0 8px; }
+.product-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 10px; border-radius: var(--r);
+  cursor: pointer; transition: var(--trans);
+}
+.product-item:hover { background: rgba(255,255,255,0.04); }
+.product-item.selected { background: rgba(124,92,252,0.15); }
+.product-item.selected .prod-name { color: var(--text); }
+.cat-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+}
+.prod-name { font-size: 11px; color: var(--muted); line-height: 1.3; flex: 1; }
+.prod-held { font-size: 9px; color: var(--amber); background: rgba(251,191,36,0.1);
+             padding: 1px 6px; border-radius: 10px; white-space: nowrap; }
 
-  /* ── PAGE HEADER ── */
-  .page-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-  }
-  .page-title { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
-  .page-sub { font-size: 13px; color: var(--muted); margin-top: 4px; font-family: var(--mono); }
-  .run-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: linear-gradient(135deg, var(--accent), #0099cc);
-    color: #000;
-    border: none;
-    padding: 10px 22px;
-    border-radius: 8px;
-    font-family: var(--mono);
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: opacity 0.2s, transform 0.1s;
-  }
-  .run-btn:hover { opacity: 0.88; transform: translateY(-1px); }
-  .run-btn:active { transform: translateY(0); }
-  .run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+/* ── Main content ────────────────────────────────────────────────────────── */
+.main {
+  padding: 32px;
+  display: flex; flex-direction: column; gap: 28px;
+}
 
-  /* ── KPI CARDS ── */
-  .kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-  }
-  .kpi-card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 18px;
-    position: relative;
-    overflow: hidden;
-    transition: border-color 0.2s;
-  }
-  .kpi-card:hover { border-color: rgba(0,229,255,0.3); }
-  .kpi-card::after {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-  }
-  .kpi-card.accent::after { background: var(--accent); }
-  .kpi-card.purple::after { background: var(--accent2); }
-  .kpi-card.green::after { background: var(--green); }
-  .kpi-card.yellow::after { background: var(--yellow); }
-  .kpi-label { font-size: 11px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; font-family: var(--mono); }
-  .kpi-value { font-size: 28px; font-weight: 700; margin: 8px 0 4px; letter-spacing: -0.02em; }
-  .kpi-delta { font-size: 12px; font-family: var(--mono); }
-  .kpi-delta.up { color: var(--green); }
-  .kpi-delta.down { color: var(--red); }
-  .kpi-icon { position: absolute; right: 14px; top: 14px; font-size: 22px; opacity: 0.15; }
+/* ── Section titles ──────────────────────────────────────────────────────── */
+.section-title {
+  font-family: var(--font-head);
+  font-size: 20px; font-weight: 700;
+  letter-spacing: -0.5px;
+  display: flex; align-items: center; gap: 12px;
+}
+.section-title small {
+  font-family: var(--font-mono);
+  font-size: 11px; color: var(--muted);
+  font-weight: 400; letter-spacing: 0;
+}
 
-  /* ── PANELS ── */
-  .panel-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-  .panel-row.thirds { grid-template-columns: 2fr 1fr; }
+/* ── Cards ───────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: 20px;
+  transition: var(--trans);
+}
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.card-title {
+  font-family: var(--font-head);
+  font-size: 13px; font-weight: 600;
+  letter-spacing: 0.2px;
+}
 
-  .panel {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    overflow: hidden;
-  }
-  .panel-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--border);
-  }
-  .panel-title { font-size: 13px; font-weight: 600; }
-  .panel-badge {
-    font-family: var(--mono);
-    font-size: 10px;
-    padding: 3px 8px;
-    border-radius: 20px;
-    background: rgba(0,229,255,0.1);
-    color: var(--accent);
-    border: 1px solid rgba(0,229,255,0.2);
-  }
-  .panel-body { padding: 18px; }
+/* ── Stat grid ───────────────────────────────────────────────────────────── */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+.stat-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--r2);
+  padding: 18px;
+}
+.stat-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
+.stat-value {
+  font-family: var(--font-head);
+  font-size: 26px; font-weight: 800;
+  letter-spacing: -1px; line-height: 1;
+}
+.stat-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
 
-  /* ── CHART CANVAS ── */
-  .chart-area {
-    width: 100%;
-    height: 200px;
-    position: relative;
-  }
-  canvas { width: 100% !important; }
+/* ── Chart containers ────────────────────────────────────────────────────── */
+.chart-wrap { position: relative; height: 200px; }
+.chart-wrap-tall { position: relative; height: 260px; }
 
-  /* ── AGENT TABLE ── */
-  .agent-table { width: 100%; border-collapse: collapse; }
-  .agent-table th {
-    text-align: left;
-    font-family: var(--mono);
-    font-size: 10px;
-    color: var(--muted);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    padding: 0 0 10px 0;
-    border-bottom: 1px solid var(--border);
-  }
-  .agent-table td {
-    padding: 10px 0;
-    font-size: 13px;
-    border-bottom: 1px solid rgba(37,43,56,0.5);
-  }
-  .agent-table tr:last-child td { border-bottom: none; }
-  .rank-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px; height: 22px;
-    border-radius: 6px;
-    font-family: var(--mono);
-    font-size: 11px;
-    font-weight: 600;
-  }
-  .rank-1 { background: rgba(251,191,36,0.15); color: #fbbf24; }
-  .rank-2 { background: rgba(148,163,184,0.15); color: #94a3b8; }
-  .rank-3 { background: rgba(180,83,9,0.15); color: #b45309; }
-  .rank-other { background: var(--surface); color: var(--muted); }
-  .bar-bg { background: var(--surface); border-radius: 3px; height: 6px; margin-top: 4px; }
-  .bar-fill { height: 6px; border-radius: 3px; transition: width 0.8s ease; }
+/* ── Agent grid ──────────────────────────────────────────────────────────── */
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.agent-btn {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--bg3);
+  color: var(--muted); font-family: var(--font-mono); font-size: 12px;
+  cursor: pointer; transition: var(--trans);
+  text-align: left;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.agent-btn:hover { border-color: var(--border2); color: var(--text); }
+.agent-btn.active { border-color: var(--accent); color: var(--text); background: rgba(124,92,252,0.1); }
+.agent-btn-name { font-weight: 700; font-size: 13px; }
+.agent-btn-desc { font-size: 10px; color: var(--muted); line-height: 1.4; }
 
-  /* ── PRODUCT CARDS ── */
-  .products-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
-  .product-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-  .product-card:hover, .product-card.sel { border-color: var(--accent); background: rgba(0,229,255,0.05); }
-  .product-card .p-name { font-size: 12px; font-weight: 600; margin-bottom: 4px; }
-  .product-card .p-cat {
-    font-family: var(--mono);
-    font-size: 10px;
-    color: var(--muted);
-    text-transform: uppercase;
-  }
-  .product-card .p-price {
-    font-family: var(--mono);
-    font-size: 13px;
-    color: var(--accent);
-    margin-top: 6px;
-  }
+/* ── Buttons ─────────────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 18px; border-radius: var(--r);
+  font-family: var(--font-mono); font-size: 12px; font-weight: 700;
+  cursor: pointer; transition: var(--trans); border: none;
+}
+.btn-primary {
+  background: var(--accent); color: #fff;
+  box-shadow: 0 0 20px rgba(124,92,252,0.3);
+}
+.btn-primary:hover { background: #6b4ef0; transform: translateY(-1px); }
+.btn-primary:disabled { background: var(--bg3); color: var(--muted); box-shadow: none; cursor: not-allowed; transform: none; }
+.btn-outline {
+  background: transparent; color: var(--text);
+  border: 1px solid var(--border2);
+}
+.btn-outline:hover { border-color: var(--accent); color: var(--accent); }
 
-  /* ── TRAINING PROGRESS ── */
-  .train-log {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: #64748b;
-    background: var(--surface);
-    border-radius: 8px;
-    padding: 14px;
-    height: 160px;
-    overflow-y: auto;
-    line-height: 1.7;
-  }
-  .train-log .log-line { margin: 0; }
-  .train-log .log-line.ok { color: var(--green); }
-  .train-log .log-line.info { color: var(--accent); }
-  .train-log .log-line.warn { color: var(--yellow); }
+/* ── Controls row ────────────────────────────────────────────────────────── */
+.controls {
+  display: flex; align-items: center; gap: 12px;
+  flex-wrap: wrap;
+}
+.select-wrap { position: relative; display: inline-flex; align-items: center; }
+.select-wrap select {
+  appearance: none;
+  background: var(--bg3); color: var(--text);
+  border: 1px solid var(--border2); border-radius: var(--r);
+  padding: 8px 32px 8px 12px; font-family: var(--font-mono); font-size: 12px;
+  cursor: pointer;
+}
+.select-wrap::after {
+  content: '▾'; position: absolute; right: 10px;
+  color: var(--muted); pointer-events: none;
+}
 
-  /* ── SLIDER CONTROLS ── */
-  .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  .ctrl-group label {
-    display: flex;
-    justify-content: space-between;
-    font-size: 12px;
-    color: var(--muted);
-    margin-bottom: 6px;
-  }
-  .ctrl-group label span { font-family: var(--mono); color: var(--accent); }
-  input[type=range] {
-    width: 100%;
-    accent-color: var(--accent);
-    cursor: pointer;
-  }
+/* ── Episode timeline ────────────────────────────────────────────────────── */
+.timeline {
+  display: flex; gap: 3px; flex-wrap: wrap; padding: 4px 0;
+}
+.day-cell {
+  width: 20px; height: 36px; border-radius: 4px;
+  background: var(--bg3); border: 1px solid var(--border);
+  cursor: pointer; transition: var(--trans);
+  position: relative;
+  display: flex; align-items: flex-end; justify-content: center;
+  overflow: hidden;
+}
+.day-bar {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  transition: height 0.3s ease;
+  border-radius: 3px 3px 0 0;
+}
+.day-cell:hover { border-color: var(--accent2); z-index: 2; }
+.day-cell.active { border-color: var(--accent); box-shadow: 0 0 8px rgba(124,92,252,0.4); }
 
-  /* ── TABS ── */
-  .tab-bar { display: flex; gap: 4px; border-bottom: 1px solid var(--border); padding: 0 18px; }
-  .tab {
-    font-size: 12px;
-    font-weight: 500;
-    padding: 10px 14px;
-    cursor: pointer;
-    color: var(--muted);
-    border-bottom: 2px solid transparent;
-    transition: all 0.15s;
-    margin-bottom: -1px;
-  }
-  .tab:hover { color: var(--text); }
-  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+/* ── Tooltip-style day info ──────────────────────────────────────────────── */
+.day-info {
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: var(--r); padding: 14px;
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px; font-size: 12px;
+}
+.di-label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
+.di-value { font-weight: 700; font-size: 15px; }
 
-  /* ── ADAPTATION DEMO ── */
-  .adapt-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 10px;
-  }
-  .adapt-label { font-size: 12px; min-width: 80px; color: var(--muted); font-family: var(--mono); }
-  .adapt-bar-wrap { flex: 1; background: var(--surface); border-radius: 4px; height: 8px; }
-  .adapt-bar { height: 8px; border-radius: 4px; }
-  .adapt-val { font-family: var(--mono); font-size: 12px; min-width: 50px; text-align: right; }
+/* ── Performance bar ─────────────────────────────────────────────────────── */
+.perf-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 8px 0;
+}
+.perf-label { width: 90px; font-size: 11px; color: var(--muted); flex-shrink: 0; }
+.perf-bar-bg {
+  flex: 1; height: 8px; background: var(--bg3);
+  border-radius: 4px; overflow: hidden;
+}
+.perf-bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+.perf-val { width: 52px; text-align: right; font-size: 12px; font-weight: 700; }
 
-  /* ── PREDICTION PAGE ── */
-  .predict-layout { display: grid; grid-template-columns: 380px 1fr; gap: 24px; align-items: start; }
+/* ── Adapt section ───────────────────────────────────────────────────────── */
+.adapt-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
-  .input-group { margin-bottom: 18px; }
-  .input-group label {
-    display: block;
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--muted);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    margin-bottom: 8px;
-  }
-  .input-group input, .input-group select {
-    width: 100%;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 10px 14px;
-    color: var(--text);
-    font-family: var(--mono);
-    font-size: 14px;
-    outline: none;
-    transition: border-color 0.2s;
-  }
-  .input-group input:focus, .input-group select:focus { border-color: var(--accent); }
-  .input-group input::placeholder { color: var(--muted); }
-  .input-group select option { background: var(--surface); }
+/* ── Custom product form ──────────────────────────────────────────────────── */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.form-input {
+  background: var(--bg3); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--r);
+  padding: 8px 12px; font-family: var(--font-mono); font-size: 12px;
+  transition: var(--trans);
+}
+.form-input:focus { outline: none; border-color: var(--accent); }
 
-  .input-hint { font-size: 11px; color: var(--muted); margin-top: 5px; font-family: var(--mono); }
+/* ── Tab nav ─────────────────────────────────────────────────────────────── */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+.tab {
+  padding: 9px 16px; background: none; border: none;
+  color: var(--muted); font-family: var(--font-mono); font-size: 12px;
+  cursor: pointer; transition: var(--trans);
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-  .predict-btn {
-    width: 100%;
-    background: linear-gradient(135deg, var(--accent), #0099cc);
-    color: #000;
-    border: none;
-    padding: 13px;
-    border-radius: 10px;
-    font-family: var(--mono);
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    letter-spacing: 0.05em;
-    transition: opacity 0.2s, transform 0.1s;
-    margin-top: 4px;
-  }
-  .predict-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+/* ── View panels ─────────────────────────────────────────────────────────── */
+.view { display: none; flex-direction: column; gap: 24px; }
+.view.active { display: flex; }
 
-  /* Result card */
-  .result-hero {
-    background: linear-gradient(135deg, rgba(0,229,255,0.08), rgba(124,58,237,0.08));
-    border: 1px solid rgba(0,229,255,0.25);
-    border-radius: 14px;
-    padding: 28px;
-    text-align: center;
-    margin-bottom: 20px;
-    position: relative;
-    overflow: hidden;
-  }
-  .result-hero::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(ellipse at 50% 0%, rgba(0,229,255,0.07), transparent 70%);
-    pointer-events: none;
-  }
-  .result-label { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; }
-  .result-price {
-    font-size: 56px;
-    font-weight: 700;
-    color: var(--accent);
-    letter-spacing: -0.03em;
-    margin: 10px 0 4px;
-    line-height: 1;
-  }
-  .result-action {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-family: var(--mono);
-    font-size: 13px;
-    padding: 5px 14px;
-    border-radius: 20px;
-    margin-top: 8px;
-  }
-  .action-raise  { background: rgba(34,197,94,0.15);  color: var(--green); }
-  .action-lower  { background: rgba(239,68,68,0.15);  color: var(--red);   }
-  .action-keep   { background: rgba(245,158,11,0.15); color: var(--yellow);}
+/* ── Status indicator ────────────────────────────────────────────────────── */
+.status-row { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.status-ok  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.status-warn { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
 
-  .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
-  .metric-box {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 14px;
-  }
-  .metric-box .m-label { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
-  .metric-box .m-val { font-size: 20px; font-weight: 700; margin-top: 6px; letter-spacing: -0.02em; }
+/* ── Spinner ─────────────────────────────────────────────────────────────── */
+.spinner {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
-  .reasoning-box {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px;
-  }
-  .reasoning-box h4 { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 0.1em; margin-bottom: 12px; }
-  .reason-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-  .reason-icon { font-size: 16px; width: 24px; text-align: center; }
-  .reason-text { font-size: 13px; color: var(--text); }
-  .reason-sub  { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+/* ── Toast ───────────────────────────────────────────────────────────────── */
+#toast {
+  position: fixed; bottom: 24px; right: 24px; z-index: 999;
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: var(--r); padding: 12px 18px;
+  font-size: 12px; color: var(--text);
+  transform: translateY(80px); opacity: 0;
+  transition: all 0.25s ease;
+  max-width: 300px;
+}
+#toast.show { transform: translateY(0); opacity: 1; }
 
-  .price-levels-row {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-  }
-  .price-lvl {
-    flex: 1;
-    min-width: 0;
-    padding: 8px 4px;
-    border-radius: 6px;
-    text-align: center;
-    font-family: var(--mono);
-    font-size: 10px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--muted);
-    cursor: default;
-    transition: all 0.2s;
-  }
-  .price-lvl.active {
-    background: rgba(0,229,255,0.12);
-    border-color: var(--accent);
-    color: var(--accent);
-    font-weight: 600;
-    transform: translateY(-3px);
-    box-shadow: 0 4px 12px rgba(0,229,255,0.2);
-  }
-  .price-lvl .lvl-price { font-size: 9px; display: block; margin-top: 2px; }
+/* ── Scrollbar ────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
 
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 400px;
-    color: var(--muted);
-    gap: 12px;
-  }
-  .empty-state .es-icon { font-size: 48px; opacity: 0.3; }
-  .empty-state .es-text { font-size: 14px; }
-  .empty-state .es-sub  { font-family: var(--mono); font-size: 12px; }
-
-  /* scrollbar */
-  ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-  /* tab panels */
-  .tab-panel { display: none; }
-  .tab-panel.active { display: block; }
-
-  /* Animate in */
-  @keyframes fadein { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
-  .kpi-card, .panel { animation: fadein 0.4s ease both; }
-  .kpi-card:nth-child(1) { animation-delay: 0.05s; }
-  .kpi-card:nth-child(2) { animation-delay: 0.1s; }
-  .kpi-card:nth-child(3) { animation-delay: 0.15s; }
-  .kpi-card:nth-child(4) { animation-delay: 0.2s; }
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  .sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+  .stat-grid { grid-template-columns: 1fr 1fr; }
+  .agent-grid { grid-template-columns: 1fr 1fr; }
+  .adapt-grid { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
-<div class="shell">
 
-<!-- HEADER -->
-<header>
+<!-- ── HEADER ────────────────────────────────────────────────────────────── -->
+<header class="header">
   <div class="logo">
-    <div class="logo-icon">⚡</div>
-    <div>
-      <div class="logo-text">DYNAMIC PRICING RL</div>
-      <div class="logo-sub">MAML General-Purpose Agent · v3</div>
-    </div>
+    <div class="logo-dot"></div>
+    Dynamic Pricing RL
   </div>
-  <div class="header-status">
-    <div class="dot"></div>
-    SYSTEM READY
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div id="conn-status" class="status-row">
+      <div class="status-dot status-warn" id="conn-dot"></div>
+      <span id="conn-text">Connecting…</span>
+    </div>
+    <div class="header-badge">MAML + DQN</div>
   </div>
 </header>
 
-<div class="main">
+<!-- ── LAYOUT ────────────────────────────────────────────────────────────── -->
+<div class="layout">
 
-  <!-- SIDEBAR -->
+  <!-- ── SIDEBAR ─────────────────────────────────────────────────────────── -->
   <aside class="sidebar">
-    <div class="sidebar-section-label">Navigation</div>
-    <div class="nav-item active" onclick="setPage('overview')"><span class="nav-icon">📊</span> Overview</div>
-    <div class="nav-item" onclick="setPage('training')"><span class="nav-icon">🧠</span> Training</div>
-    <div class="nav-item" onclick="setPage('agents')"><span class="nav-icon">🤖</span> Agent Comparison</div>
-    <div class="nav-item" onclick="setPage('products')"><span class="nav-icon">📦</span> Products</div>
-    <div class="nav-item" onclick="setPage('adaptation')"><span class="nav-icon">⚡</span> Adaptation Demo</div>
-    <div class="nav-item" onclick="setPage('predict')"><span class="nav-icon">🎯</span> Price Predictor</div>
-
-    <div class="sidebar-section-label">Active Config</div>
-    <div class="config-box">
-      <h4>CFG · v3</h4>
-      <div class="cfg-row"><span class="cfg-label">Products</span><span class="cfg-val">10</span></div>
-      <div class="cfg-row"><span class="cfg-label">Episode len</span><span class="cfg-val">30</span></div>
-      <div class="cfg-row"><span class="cfg-label">Price levels</span><span class="cfg-val">11</span></div>
-      <div class="cfg-row"><span class="cfg-label">State dim</span><span class="cfg-val">10</span></div>
-      <div class="cfg-row"><span class="cfg-label">DQN eps</span><span class="cfg-val">600</span></div>
-      <div class="cfg-row"><span class="cfg-label">MAML iters</span><span class="cfg-val">500</span></div>
-      <div class="cfg-row"><span class="cfg-label">Adapt eps</span><span class="cfg-val">10</span></div>
+    <div class="nav-section">
+      <div class="nav-label">Navigation</div>
+      <button class="nav-btn active" onclick="showView('overview')" id="nav-overview">
+        <span class="nav-icon">◈</span> Overview
+      </button>
+      <button class="nav-btn" onclick="showView('simulate')" id="nav-simulate">
+        <span class="nav-icon">▶</span> Simulate
+      </button>
+      <button class="nav-btn" onclick="showView('benchmark')" id="nav-benchmark">
+        <span class="nav-icon">≡</span> Benchmark
+      </button>
+      <button class="nav-btn" onclick="showView('adapt')" id="nav-adapt">
+        <span class="nav-icon">⟳</span> MAML Adapt
+      </button>
+      <button class="nav-btn" onclick="showView('custom')" id="nav-custom">
+        <span class="nav-icon">+</span> New Product
+      </button>
     </div>
+
+    <div class="nav-sep"></div>
+
+    <div class="nav-section">
+      <div class="nav-label">Products</div>
+    </div>
+    <div class="product-list" id="product-list"></div>
   </aside>
 
-  <!-- MAIN CONTENT -->
-  <main class="content">
+  <!-- ── MAIN ─────────────────────────────────────────────────────────────── -->
+  <main class="main">
 
-    <!-- ══════════ OVERVIEW PAGE ══════════ -->
-    <div id="page-overview">
-      <div class="page-header">
-        <div>
-          <div class="page-title">Dashboard Overview</div>
-          <div class="page-sub">$ python train_and_evaluate.py · MAML PRIMARY · DQN baseline</div>
-        </div>
-        <button class="run-btn" onclick="simulateRun()">▶ Run Pipeline</button>
-      </div>
-
-      <!-- KPIs -->
-      <div class="kpi-grid">
-        <div class="kpi-card accent">
-          <div class="kpi-icon">🏆</div>
-          <div class="kpi-label">MAML Mean Reward</div>
-          <div class="kpi-value" id="kpi-maml">0.847</div>
-          <div class="kpi-delta up" id="kpi-maml-delta">↑ +12.3% vs DQN</div>
-        </div>
-        <div class="kpi-card purple">
-          <div class="kpi-icon">🤖</div>
-          <div class="kpi-label">DQN Mean Reward</div>
-          <div class="kpi-value" id="kpi-dqn">0.754</div>
-          <div class="kpi-delta up">↑ +38% vs Random</div>
-        </div>
-        <div class="kpi-card green">
-          <div class="kpi-icon">⚡</div>
-          <div class="kpi-label">Adapt Episodes</div>
-          <div class="kpi-value">10</div>
-          <div class="kpi-delta up">vs 600 for DQN</div>
-        </div>
-        <div class="kpi-card yellow">
-          <div class="kpi-icon">📦</div>
-          <div class="kpi-label">Products Trained</div>
-          <div class="kpi-value">9</div>
-          <div class="kpi-delta">1 held-out for test</div>
+    <!-- ── OVERVIEW ────────────────────────────────────────────────────────── -->
+    <div class="view active" id="view-overview">
+      <div>
+        <div class="section-title">
+          Overview
+          <small>Agent performance · published results</small>
         </div>
       </div>
 
-      <!-- Charts row -->
-      <div class="panel-row thirds">
-        <!-- Learning curve -->
-        <div class="panel">
-          <div class="panel-head">
-            <span class="panel-title">Learning Curves — DQN per Product</span>
-            <span class="panel-badge">600 episodes</span>
-          </div>
-          <div class="panel-body">
-            <div class="chart-area">
-              <canvas id="chartDQN" height="180"></canvas>
-            </div>
-          </div>
+      <!-- Stats row -->
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-label">Best Agent</div>
+          <div class="stat-value" style="color:var(--accent)">MAML</div>
+          <div class="stat-sub">Meta-learning agent</div>
         </div>
-
-        <!-- MAML meta rewards -->
-        <div class="panel">
-          <div class="panel-head">
-            <span class="panel-title">MAML Meta Rewards</span>
-            <span class="panel-badge">500 iterations</span>
-          </div>
-          <div class="panel-body">
-            <div class="chart-area">
-              <canvas id="chartMAML" height="180"></canvas>
-            </div>
-          </div>
+        <div class="stat-card">
+          <div class="stat-label">MAML Mean Reward</div>
+          <div class="stat-value" style="color:var(--green)">40.57</div>
+          <div class="stat-sub">σ = 7.49 · 10 adapt eps</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">vs Optimal Agent</div>
+          <div class="stat-value" style="color:var(--amber)">+12.5%</div>
+          <div class="stat-sub">MAML beats static ceiling</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Products</div>
+          <div class="stat-value" id="ov-nproducts">10</div>
+          <div class="stat-sub">5 categories · 1 held-out</div>
         </div>
       </div>
 
-      <!-- Agent comparison -->
-      <div class="panel-row">
-        <div class="panel">
-          <div class="panel-head">
-            <span class="panel-title">Agent Comparison</span>
-            <span class="panel-badge">50 eval episodes</span>
+      <!-- Agent comparison chart -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Agent Performance Comparison</div>
+          <div class="status-row"><div class="status-dot status-ok"></div> Published results</div>
+        </div>
+        <div class="chart-wrap-tall">
+          <canvas id="compChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Product metadata table -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Product Dataset</div>
+          <div style="font-size:11px;color:var(--muted)">9 training · 1 held-out</div>
+        </div>
+        <div id="products-table" style="overflow-x:auto;"></div>
+      </div>
+    </div>
+
+    <!-- ── SIMULATE ─────────────────────────────────────────────────────────── -->
+    <div class="view" id="view-simulate">
+      <div>
+        <div class="section-title">
+          Simulate Episode
+          <small>Run 30-day pricing episode</small>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="controls" style="margin-bottom:0;">
+          <div class="select-wrap">
+            <select id="sim-product"></select>
           </div>
-          <div class="panel-body">
-            <table class="agent-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Agent</th>
-                  <th>Mean Reward</th>
-                  <th>Std Dev</th>
-                  <th>Performance</th>
-                </tr>
-              </thead>
-              <tbody id="agentTableBody"></tbody>
-            </table>
+          <div class="select-wrap">
+            <select id="sim-agent">
+              <option value="maml">MAML (meta-agent)</option>
+              <option value="dqn">DQN (specialist)</option>
+              <option value="optimal">Optimal (static)</option>
+              <option value="rulebased">Rule-Based</option>
+              <option value="fixed">Fixed Price</option>
+              <option value="random">Random</option>
+            </select>
           </div>
+          <button class="btn btn-primary" id="sim-btn" onclick="runSimulation()">
+            <span id="sim-spinner" style="display:none;" class="spinner"></span>
+            ▶ Run Episode
+          </button>
         </div>
+      </div>
 
-        <!-- Price behavior -->
-        <div class="panel">
-          <div class="panel-head">
-            <span class="panel-title">Price Behavior</span>
-            <span class="panel-badge">Episode sample</span>
+      <!-- Results -->
+      <div id="sim-results" style="display:none;flex-direction:column;gap:20px;">
+        <!-- KPIs -->
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-label">Total Reward</div>
+            <div class="stat-value" id="sim-reward" style="color:var(--green)">—</div>
+            <div class="stat-sub">Normalised</div>
           </div>
-          <div class="panel-body">
-            <div class="chart-area">
-              <canvas id="chartPrice" height="180"></canvas>
-            </div>
+          <div class="stat-card">
+            <div class="stat-label">Total Revenue</div>
+            <div class="stat-value" id="sim-revenue">—</div>
+            <div class="stat-sub">USD · 30 days</div>
           </div>
-        </div>
-      </div>
-    </div><!-- /overview -->
-
-    <!-- ══════════ TRAINING PAGE ══════════ -->
-    <div id="page-training" style="display:none">
-      <div class="page-header">
-        <div>
-          <div class="page-title">Training Configuration</div>
-          <div class="page-sub">Adjust hyperparameters and launch training</div>
-        </div>
-        <button class="run-btn" onclick="simulateTrain()" id="trainBtn">▶ Start Training</button>
-      </div>
-
-      <div class="panel-row">
-        <div class="panel">
-          <div class="panel-head"><span class="panel-title">DQN Hyperparameters</span></div>
-          <div class="panel-body">
-            <div class="controls-grid">
-              <div class="ctrl-group">
-                <label>Episodes <span id="v-dqn-ep">600</span></label>
-                <input type="range" min="100" max="2000" value="600" oninput="document.getElementById('v-dqn-ep').textContent=this.value">
-              </div>
-              <div class="ctrl-group">
-                <label>Learning Rate <span id="v-dqn-lr">0.001</span></label>
-                <input type="range" min="1" max="50" value="10" oninput="document.getElementById('v-dqn-lr').textContent=(this.value/10000).toFixed(4)">
-              </div>
-              <div class="ctrl-group">
-                <label>Gamma <span id="v-dqn-g">0.99</span></label>
-                <input type="range" min="80" max="100" value="99" oninput="document.getElementById('v-dqn-g').textContent=(this.value/100).toFixed(2)">
-              </div>
-              <div class="ctrl-group">
-                <label>Epsilon Decay <span id="v-dqn-ed">0.995</span></label>
-                <input type="range" min="970" max="999" value="995" oninput="document.getElementById('v-dqn-ed').textContent=(this.value/1000).toFixed(3)">
-              </div>
-            </div>
+          <div class="stat-card">
+            <div class="stat-label">Avg Daily Price</div>
+            <div class="stat-value" id="sim-avg-price">—</div>
+            <div class="stat-sub">Per unit</div>
           </div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head"><span class="panel-title">MAML Hyperparameters</span></div>
-          <div class="panel-body">
-            <div class="controls-grid">
-              <div class="ctrl-group">
-                <label>Meta Iterations <span id="v-maml-it">500</span></label>
-                <input type="range" min="50" max="2000" value="500" oninput="document.getElementById('v-maml-it').textContent=this.value">
-              </div>
-              <div class="ctrl-group">
-                <label>Inner LR <span id="v-maml-ilr">0.05</span></label>
-                <input type="range" min="1" max="20" value="5" oninput="document.getElementById('v-maml-ilr').textContent=(this.value/100).toFixed(2)">
-              </div>
-              <div class="ctrl-group">
-                <label>Meta LR <span id="v-maml-mlr">0.001</span></label>
-                <input type="range" min="1" max="50" value="10" oninput="document.getElementById('v-maml-mlr').textContent=(this.value/10000).toFixed(4)">
-              </div>
-              <div class="ctrl-group">
-                <label>Batch Size <span id="v-maml-bs">8</span></label>
-                <input type="range" min="2" max="32" value="8" step="2" oninput="document.getElementById('v-maml-bs').textContent=this.value">
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Training log -->
-      <div class="panel">
-        <div class="panel-head">
-          <span class="panel-title">Training Log</span>
-          <span class="panel-badge" id="log-status">IDLE</span>
-        </div>
-        <div class="panel-body">
-          <div class="train-log" id="trainLog">
-            <p class="log-line">[system] Ready. Configure parameters above and press Start Training.</p>
-          </div>
-        </div>
-      </div>
-    </div><!-- /training -->
-
-    <!-- ══════════ AGENTS PAGE ══════════ -->
-    <div id="page-agents" style="display:none">
-      <div class="page-header">
-        <div>
-          <div class="page-title">Agent Comparison</div>
-          <div class="page-sub">6 agents evaluated on 9 products · 50 episodes each</div>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="tab-bar">
-          <div class="tab active" onclick="setTab(this,'tab-bar-chart')">Bar Chart</div>
-          <div class="tab" onclick="setTab(this,'tab-per-product')">Per Product</div>
-        </div>
-        <div id="tab-bar-chart" class="tab-panel active">
-          <div class="panel-body">
-            <div class="chart-area" style="height:260px">
-              <canvas id="chartAgentBar" height="260"></canvas>
-            </div>
-          </div>
-        </div>
-        <div id="tab-per-product" class="tab-panel">
-          <div class="panel-body">
-            <div class="chart-area" style="height:260px">
-              <canvas id="chartPerProduct" height="260"></canvas>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head"><span class="panel-title">Detailed Metrics</span></div>
-        <div class="panel-body">
-          <table class="agent-table">
-            <thead>
-              <tr>
-                <th>#</th><th>Agent</th><th>Mean Reward</th><th>Std Dev</th><th>Type</th><th>Notes</th>
-              </tr>
-            </thead>
-            <tbody id="agentDetailBody"></tbody>
-          </table>
-        </div>
-      </div>
-    </div><!-- /agents -->
-
-    <!-- ══════════ PRODUCTS PAGE ══════════ -->
-    <div id="page-products" style="display:none">
-      <div class="page-header">
-        <div>
-          <div class="page-title">Product Portfolio</div>
-          <div class="page-sub">10 products · 1095 days synthetic data · 1 held-out</div>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head"><span class="panel-title">Select a Product</span></div>
-        <div class="panel-body">
-          <div class="products-grid" id="productsGrid"></div>
-        </div>
-      </div>
-
-      <div class="panel-row">
-        <div class="panel" id="productDetail">
-          <div class="panel-head"><span class="panel-title">Product Detail</span></div>
-          <div class="panel-body" id="productDetailBody">
-            <p style="color:var(--muted);font-size:13px;">Click a product above to see details.</p>
-          </div>
-        </div>
-        <div class="panel">
-          <div class="panel-head"><span class="panel-title">Demand Curve</span></div>
-          <div class="panel-body">
-            <div class="chart-area">
-              <canvas id="chartDemand" height="180"></canvas>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div><!-- /products -->
-
-    <!-- ══════════ ADAPTATION PAGE ══════════ -->
-    <div id="page-adaptation" style="display:none">
-      <div class="page-header">
-        <div>
-          <div class="page-title">Adaptation Speed Demo</div>
-          <div class="page-sub">MAML (10 episodes) vs DQN from scratch on held-out product</div>
-        </div>
-      </div>
-
-      <div class="kpi-grid">
-        <div class="kpi-card accent">
-          <div class="kpi-label">MAML Adapt Episodes</div>
-          <div class="kpi-value">10</div>
-          <div class="kpi-delta up">↑ 60× faster than DQN</div>
-        </div>
-        <div class="kpi-card purple">
-          <div class="kpi-label">DQN Required Episodes</div>
-          <div class="kpi-value">600</div>
-          <div class="kpi-delta down">↓ per-product only</div>
-        </div>
-        <div class="kpi-card green">
-          <div class="kpi-label">MAML Final Reward</div>
-          <div class="kpi-value">0.821</div>
-          <div class="kpi-delta up">↑ after 10 adapt eps</div>
-        </div>
-        <div class="kpi-card yellow">
-          <div class="kpi-label">DQN at ep 10</div>
-          <div class="kpi-value">0.312</div>
-          <div class="kpi-delta down">↓ still exploring</div>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head">
-          <span class="panel-title">Adaptation Curve Comparison</span>
-          <span class="panel-badge">Held-out product #9</span>
-        </div>
-        <div class="panel-body">
-          <div class="chart-area" style="height:240px">
-            <canvas id="chartAdapt" height="240"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head"><span class="panel-title">Episode-by-Episode Performance</span></div>
-        <div class="panel-body" id="adaptBarsBody"></div>
-      </div>
-    </div><!-- /adaptation -->
-
-    <!-- ══════════ PREDICT PAGE ══════════ -->
-    <div id="page-predict" style="display:none">
-      <div class="page-header">
-        <div>
-          <div class="page-title">Price Predictor</div>
-          <div class="page-sub">MAML agent simulation · enter your product info to get the optimal price</div>
-        </div>
-      </div>
-
-      <div class="predict-layout">
-
-        <!-- LEFT: Input form -->
-        <div class="panel">
-          <div class="panel-head">
-            <span class="panel-title">Product Input</span>
-            <span class="panel-badge">MAML Simulated</span>
-          </div>
-          <div class="panel-body">
-
-            <div class="input-group">
-              <label>Product Name</label>
-              <input type="text" id="inp-name" placeholder="e.g. Wireless Headphones" oninput="clearResult()" />
-            </div>
-
-            <div class="input-group">
-              <label>Category</label>
-              <select id="inp-cat" onchange="onCatChange()">
-                <option value="">— Select category —</option>
-                <option value="Electronics">Electronics</option>
-                <option value="Sports">Sports</option>
-                <option value="Grocery">Grocery</option>
-                <option value="Furniture">Furniture</option>
-                <option value="Books">Books</option>
-                <option value="Appliances">Appliances</option>
-                <option value="Fashion">Fashion</option>
-                <option value="Other">Other</option>
-              </select>
-              <div class="input-hint" id="cat-hint">Category determines demand elasticity used by the agent.</div>
-            </div>
-
-            <div class="input-group">
-              <label>Current Price ($)</label>
-              <input type="number" id="inp-price" placeholder="e.g. 149" min="1" max="99999" oninput="clearResult()" />
-              <div class="input-hint">The price you're currently charging.</div>
-            </div>
-
-            <div class="input-group">
-              <label>Current Inventory (units)</label>
-              <input type="number" id="inp-inv" placeholder="e.g. 500" min="0" max="2000" oninput="clearResult()" />
-              <div class="input-hint">Units in stock right now (max 2000 in env).</div>
-            </div>
-
-            <div class="input-group">
-              <label>Day of Week</label>
-              <select id="inp-dow">
-                <option value="1">Monday</option>
-                <option value="2">Tuesday</option>
-                <option value="3">Wednesday</option>
-                <option value="4">Thursday</option>
-                <option value="5" selected>Friday</option>
-                <option value="6">Saturday</option>
-                <option value="7">Sunday</option>
-              </select>
-            </div>
-
-            <div class="input-group">
-              <label>Competitor Price ($) <span style="color:var(--muted);font-size:10px;font-weight:400">(optional)</span></label>
-              <input type="number" id="inp-comp" placeholder="leave blank if unknown" min="1" oninput="clearResult()" />
-            </div>
-
-            <button class="predict-btn" onclick="runPrediction()">🎯 Get Optimal Price</button>
+          <div class="stat-card">
+            <div class="stat-label">Agent</div>
+            <div class="stat-value" id="sim-agent-name" style="font-size:18px;color:var(--accent)">—</div>
+            <div class="stat-sub" id="sim-product-name">—</div>
           </div>
         </div>
 
-        <!-- RIGHT: Results -->
-        <div id="predict-results">
-          <div class="empty-state">
-            <div class="es-icon">🤖</div>
-            <div class="es-text">MAML agent ready</div>
-            <div class="es-sub">Fill in the form and click "Get Optimal Price"</div>
+        <!-- Price + revenue chart -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Price & Revenue per Day</div>
+          </div>
+          <div class="chart-wrap-tall">
+            <canvas id="simChart"></canvas>
           </div>
         </div>
 
+        <!-- Day heatmap -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Episode Heatmap — click a day for details</div>
+          </div>
+          <div class="timeline" id="sim-timeline"></div>
+          <div class="day-info" id="day-info" style="margin-top:14px;display:none;"></div>
+        </div>
       </div>
-    </div><!-- /predict -->
+    </div>
+
+    <!-- ── BENCHMARK ────────────────────────────────────────────────────────── -->
+    <div class="view" id="view-benchmark">
+      <div>
+        <div class="section-title">
+          Live Benchmark
+          <small>Compare all agents on selected product</small>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="controls">
+          <div class="select-wrap">
+            <select id="bench-product"></select>
+          </div>
+          <div class="select-wrap">
+            <select id="bench-n">
+              <option value="10">10 episodes</option>
+              <option value="20" selected>20 episodes</option>
+              <option value="50">50 episodes</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" id="bench-btn" onclick="runBenchmark()">
+            <span id="bench-spinner" style="display:none;" class="spinner"></span>
+            ≡ Run Benchmark
+          </button>
+        </div>
+      </div>
+
+      <div id="bench-results" style="display:none;flex-direction:column;gap:20px;">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Mean Episode Reward ± Std</div>
+            <div id="bench-info" style="font-size:11px;color:var(--muted);"></div>
+          </div>
+          <div id="bench-bars"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Reward Distribution</div></div>
+          <div class="chart-wrap-tall">
+            <canvas id="benchChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ADAPT ─────────────────────────────────────────────────────────────── -->
+    <div class="view" id="view-adapt">
+      <div>
+        <div class="section-title">
+          MAML Fast Adaptation
+          <small>Watch the meta-agent learn a new product</small>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:16px;">
+          The MAML meta-agent starts from its pre-trained initialisation and adapts to a product
+          using only a handful of episodes. Select a product (the held-out <span style="color:var(--amber)">Toys Prod. 10</span> is the most revealing) and watch reward improve episode by episode.
+        </div>
+        <div class="controls">
+          <div class="select-wrap">
+            <select id="adapt-product"></select>
+          </div>
+          <div class="select-wrap">
+            <select id="adapt-n">
+              <option value="5">5 episodes</option>
+              <option value="10" selected>10 episodes</option>
+              <option value="15">15 episodes</option>
+            </select>
+          </div>
+          <button class="btn btn-primary" id="adapt-btn" onclick="runAdapt()">
+            <span id="adapt-spinner" style="display:none;" class="spinner"></span>
+            ⟳ Run Adaptation
+          </button>
+        </div>
+      </div>
+
+      <div id="adapt-results" style="display:none;flex-direction:column;gap:20px;">
+        <div class="adapt-grid">
+          <div class="stat-card">
+            <div class="stat-label">Ep 1 Reward</div>
+            <div class="stat-value" id="adapt-ep1" style="color:var(--amber)">—</div>
+            <div class="stat-sub">Before any adaptation</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Final Reward</div>
+            <div class="stat-value" id="adapt-final" style="color:var(--green)">—</div>
+            <div class="stat-sub">After adaptation</div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Reward per Adaptation Episode</div></div>
+          <div class="chart-wrap-tall">
+            <canvas id="adaptChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── CUSTOM ─────────────────────────────────────────────────────────────── -->
+    <div class="view" id="view-custom">
+      <div>
+        <div class="section-title">
+          New Product
+          <small>Register and simulate any product</small>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">Product Parameters</div></div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Product Name</label>
+            <input class="form-input" id="c-name" type="text" value="My Custom Product">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Category</label>
+            <select class="form-input" id="c-category">
+              <option value="Electronics">Electronics</option>
+              <option value="Clothing">Clothing</option>
+              <option value="Home & Garden">Home &amp; Garden</option>
+              <option value="Books">Books</option>
+              <option value="Toys">Toys</option>
+              <option value="perishable">Perishable</option>
+              <option value="subscription">Subscription</option>
+              <option value="digital">Digital</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Base Price ($)</label>
+            <input class="form-input" id="c-price" type="number" step="0.01" value="9.99">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Base Demand (units/day)</label>
+            <input class="form-input" id="c-demand" type="number" step="1" value="50">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Price Elasticity</label>
+            <input class="form-input" id="c-elasticity" type="number" step="0.01" value="-0.5">
+          </div>
+          <div class="form-group" style="align-self:end;">
+            <button class="btn btn-primary" onclick="registerCustom()" id="c-btn">
+              <span id="c-spinner" style="display:none;" class="spinner"></span>
+              + Register Product
+            </button>
+          </div>
+        </div>
+      </div>
+      <div id="custom-msg" style="display:none;" class="card">
+        <div style="color:var(--green);font-size:13px;" id="custom-msg-text"></div>
+      </div>
+    </div>
 
   </main>
-</div><!-- /main -->
-</div><!-- /shell -->
+</div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<!-- ── TOAST ──────────────────────────────────────────────────────────────── -->
+<div id="toast"></div>
+
 <script>
-// ─── DATA ───────────────────────────────────────────────────
-const AGENTS = [
-  { name: 'MAML',      reward: 0.847, std: 0.043, type: 'Meta-RL',  notes: 'General-purpose; 10 adapt eps' },
-  { name: 'Optimal',   reward: 0.791, std: 0.029, type: 'Oracle',   notes: 'Knows true elasticity' },
-  { name: 'DQN',       reward: 0.754, std: 0.081, type: 'Deep RL',  notes: 'Per-product specialist' },
-  { name: 'RuleBased', reward: 0.548, std: 0.067, type: 'Heuristic',notes: 'Demand-level rules' },
-  { name: 'Fixed',     reward: 0.461, std: 0.102, type: 'Baseline', notes: 'Static base price' },
-  { name: 'Random',    reward: 0.316, std: 0.154, type: 'Baseline', notes: 'Uniform random price' },
-];
+// ── Config ───────────────────────────────────────────────────────────────────
+const API = 'http://localhost:5050/api';
 
-const PRODUCTS = [
-  { id:'P001', name:'Laptop Pro', cat:'Electronics', price:899, elasticity:-1.2, status:'train' },
-  { id:'P002', name:'Wireless Earbuds', cat:'Electronics', price:129, elasticity:-1.8, status:'train' },
-  { id:'P003', name:'Running Shoes', cat:'Sports', price:89, elasticity:-2.1, status:'train' },
-  { id:'P004', name:'Coffee Beans', cat:'Grocery', price:24, elasticity:-0.9, status:'train' },
-  { id:'P005', name:'Office Chair', cat:'Furniture', price:349, elasticity:-1.4, status:'train' },
-  { id:'P006', name:'Python Book', cat:'Books', price:49, elasticity:-1.6, status:'train' },
-  { id:'P007', name:'Yoga Mat', cat:'Sports', price:39, elasticity:-1.9, status:'train' },
-  { id:'P008', name:'Smart Watch', cat:'Electronics', price:249, elasticity:-1.1, status:'train' },
-  { id:'P009', name:'Blender X', cat:'Appliances', price:79, elasticity:-1.7, status:'train' },
-  { id:'P010', name:'USB-C Hub', cat:'Electronics', price:59, elasticity:-2.3, status:'held-out' },
-];
+// ── State ────────────────────────────────────────────────────────────────────
+let products   = [];
+let simChart   = null;
+let compChart  = null;
+let benchChart = null;
+let adaptChart = null;
+let simSteps   = [];
+let selProduct = null;
 
-// Simulate DQN learning curves (smoothed random walk up)
-function genLearningCurve(n=600, seed=42) {
-  let r = seed, arr = [];
-  const rnd = () => { r = (r*1664525+1013904223)&0xffffffff; return (r>>>0)/0xffffffff; };
-  let v = 0.1;
-  for(let i=0;i<n;i++) { v += (rnd()-0.48)*0.04; v = Math.max(0.05,Math.min(0.85,v)); arr.push(+(v+(rnd()-0.5)*0.03).toFixed(3)); }
-  return arr;
-}
-
-function smooth(arr, k=15) {
-  return arr.map((_,i) => {
-    const w = arr.slice(Math.max(0,i-k), i+1);
-    return w.reduce((a,b)=>a+b,0)/w.length;
-  });
-}
-
-function genMAMLCurve(n=500) {
-  let arr=[]; let v=0.3;
-  for(let i=0;i<n;i++){
-    v += (Math.random()-0.42)*0.015;
-    v = Math.max(0.2,Math.min(0.9,v));
-    arr.push(+v.toFixed(3));
-  }
-  return smooth(arr, 20);
-}
-
-function genAdaptCurve(start, end, n=10, noise=0.03) {
-  return Array.from({length:n},(_,i)=>{
-    const t=i/(n-1), base=start+(end-start)*(1-Math.exp(-4*t));
-    return +(base+(Math.random()-0.5)*noise).toFixed(3);
-  });
-}
-
-// Chart defaults
-Chart.defaults.color = '#64748b';
-Chart.defaults.borderColor = '#252b38';
-Chart.defaults.font.family = "'IBM Plex Mono', monospace";
-Chart.defaults.font.size = 10;
-
-const ACCENT = '#00e5ff';
-const PURPLE = '#7c3aed';
-const GREEN  = '#22c55e';
-const YELLOW = '#f59e0b';
-const RED    = '#ef4444';
-const MUTED  = '#334155';
-
+// ── Category colours ─────────────────────────────────────────────────────────
+const CAT_COLORS = {
+  Electronics:    '#60a5fa',
+  Clothing:       '#c084fc',
+  'Home & Garden':'#34d399',
+  Books:          '#fbbf24',
+  Toys:           '#f87171',
+  perishable:     '#22d3ee',
+  subscription:   '#a78bfa',
+  digital:        '#fb923c',
+  default:        '#6b7280',
+};
 const AGENT_COLORS = {
-  MAML: ACCENT, Optimal: GREEN, DQN: PURPLE,
-  RuleBased: YELLOW, Fixed: MUTED, Random: RED
+  maml:      '#7c5cfc',
+  dqn:       '#60a5fa',
+  optimal:   '#34d399',
+  random:    '#fbbf24',
+  fixed:     '#6b7280',
+  rulebased: '#f87171',
 };
 
-function makeChart(id, cfg) {
-  const el = document.getElementById(id);
-  if (!el) return null;
-  return new Chart(el.getContext('2d'), cfg);
+function catColor(c) { return CAT_COLORS[c] || CAT_COLORS.default; }
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function toast(msg, dur=2800) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
 }
 
-// ─── CHARTS ─────────────────────────────────────────────────
-function initDQNChart() {
-  const labels = Array.from({length:600},(_,i)=>i+1).filter((_,i)=>i%30===0);
-  const curves = PRODUCTS.slice(0,5).map((p,i)=>{
-    const raw = smooth(genLearningCurve(600, i*137+42));
-    return {
-      label: p.id,
-      data: raw.filter((_,j)=>j%30===0),
-      borderColor: [ACCENT,PURPLE,GREEN,YELLOW,RED][i],
-      borderWidth: 1.5,
-      pointRadius: 0,
-      tension: 0.4,
-    };
+// ── API helpers ───────────────────────────────────────────────────────────────
+async function apiFetch(path, opts={}) {
+  const r = await fetch(API + path, {
+    headers: {'Content-Type':'application/json'}, ...opts
   });
-  makeChart('chartDQN',{
-    type:'line',
-    data:{ labels, datasets: curves },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{display:false}},
-      scales:{
-        x:{grid:{color:'#1a2030'},ticks:{maxTicksLimit:8}},
-        y:{grid:{color:'#1a2030'},min:0,max:1}
-      }
-    }
-  });
+  if (!r.ok) throw new Error(`API error ${r.status}`);
+  return r.json();
 }
 
-function initMAMLChart() {
-  const raw = genMAMLCurve(500);
-  const labels = Array.from({length:500},(_,i)=>i+1).filter((_,i)=>i%25===0);
-  const data   = raw.filter((_,i)=>i%25===0);
-  makeChart('chartMAML',{
-    type:'line',
-    data:{labels, datasets:[{
-      label:'Meta Reward', data,
-      borderColor: ACCENT,
-      backgroundColor:'rgba(0,229,255,0.05)',
-      fill:true, borderWidth:2, pointRadius:0, tension:0.4
-    }]},
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{display:false}},
-      scales:{
-        x:{grid:{color:'#1a2030'},ticks:{maxTicksLimit:8}},
-        y:{grid:{color:'#1a2030'},min:0,max:1}
-      }
-    }
-  });
+// ── Connection check ──────────────────────────────────────────────────────────
+async function checkConn() {
+  try {
+    const s = await apiFetch('/status');
+    document.getElementById('conn-dot').className = 'status-dot status-ok';
+    document.getElementById('conn-text').textContent =
+      `Backend · ${s.n_products} products · MAML ${s.maml_loaded ? 'loaded' : 'untrained'}`;
+  } catch {
+    document.getElementById('conn-dot').className = 'status-dot status-warn';
+    document.getElementById('conn-text').textContent = 'Backend offline — start backend.py';
+  }
 }
 
-function initPriceChart() {
-  const eps = Array.from({length:30},(_,i)=>i+1);
-  const fixed  = Array(30).fill(0.46);
-  const random = eps.map(()=>+(0.2+Math.random()*0.6).toFixed(2));
-  const rule   = eps.map(i=>+(0.4+Math.sin(i/5)*0.1).toFixed(2));
-  makeChart('chartPrice',{
-    type:'line',
-    data:{labels:eps, datasets:[
-      {label:'Fixed',    data:fixed,  borderColor:MUTED,   borderWidth:1.5, pointRadius:0, tension:0.1, borderDash:[4,4]},
-      {label:'Random',   data:random, borderColor:RED,     borderWidth:1.5, pointRadius:0, tension:0.2},
-      {label:'RuleBased',data:rule,   borderColor:YELLOW,  borderWidth:1.5, pointRadius:0, tension:0.3},
-    ]},
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{position:'bottom', labels:{boxWidth:10}}},
-      scales:{
-        x:{grid:{color:'#1a2030'},title:{display:true,text:'Step'}},
-        y:{grid:{color:'#1a2030'},min:0,max:1,title:{display:true,text:'Norm. Price'}}
-      }
-    }
-  });
+// ── View navigation ───────────────────────────────────────────────────────────
+function showView(name) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
 }
 
-function initAgentTable() {
-  const max = AGENTS[0].reward;
-  const tbody = document.getElementById('agentTableBody');
-  tbody.innerHTML = AGENTS.map((a,i)=>`
+// ── Load products ─────────────────────────────────────────────────────────────
+async function loadProducts() {
+  products = await apiFetch('/products');
+
+  // Sidebar list
+  const list = document.getElementById('product-list');
+  list.innerHTML = products.map(p => `
+    <div class="product-item" onclick="selectProduct(${p.id})" id="pi-${p.id}">
+      <div class="cat-dot" style="background:${catColor(p.category)}"></div>
+      <div class="prod-name">${p.name}</div>
+      ${p.is_held_out ? '<div class="prod-held">held-out</div>' : ''}
+    </div>`).join('');
+
+  // Populate selects
+  ['sim-product','bench-product','adapt-product'].forEach(id => {
+    const sel = document.getElementById(id);
+    sel.innerHTML = products.map(p =>
+      `<option value="${p.id}">${p.name}</option>`).join('');
+    // Default adapt to held-out product
+    if (id === 'adapt-product') sel.value = 21931;
+  });
+
+  // Overview stats
+  document.getElementById('ov-nproducts').textContent = products.length;
+
+  // Products table
+  document.getElementById('products-table').innerHTML = buildProductTable();
+
+  // Overview comparison chart
+  renderCompChart();
+}
+
+function selectProduct(id) {
+  selProduct = id;
+  document.querySelectorAll('.product-item').forEach(el => el.classList.remove('selected'));
+  document.getElementById('pi-' + id)?.classList.add('selected');
+}
+
+// ── Products table ────────────────────────────────────────────────────────────
+function buildProductTable() {
+  const rows = products.map(p => `
     <tr>
-      <td><span class="rank-badge rank-${i<3?i+1:'other'}">${i+1}</span></td>
-      <td style="font-weight:600;color:${AGENT_COLORS[a.name]}">${a.name}</td>
-      <td style="font-family:var(--mono)">${a.reward.toFixed(3)}</td>
-      <td style="font-family:var(--mono);color:var(--muted)">±${a.std.toFixed(3)}</td>
-      <td>
-        <div class="bar-bg"><div class="bar-fill" style="width:${(a.reward/max*100).toFixed(1)}%;background:${AGENT_COLORS[a.name]}"></div></div>
-      </td>
+      <td><div style="display:flex;align-items:center;gap:8px;">
+        <div class="cat-dot" style="background:${catColor(p.category)}"></div>
+        ${p.name}
+      </div></td>
+      <td style="color:var(--muted)">${p.category}</td>
+      <td>$${p.base_price.toFixed(2)}</td>
+      <td style="color:var(--red)">${p.elasticity.toFixed(3)}</td>
+      <td style="color:var(--cyan)">${p.base_demand.toFixed(1)}</td>
+      <td style="color:var(--muted)">$${p.price_min.toFixed(2)} – $${p.price_max.toFixed(2)}</td>
+      <td>${p.is_held_out ? '<span style="color:var(--amber);font-size:10px;background:rgba(251,191,36,0.1);padding:2px 8px;border-radius:10px;">held-out</span>' : ''}</td>
     </tr>`).join('');
+  return `<table style="width:100%;border-collapse:collapse;font-size:11px;">
+    <thead><tr style="color:var(--muted);text-transform:uppercase;font-size:9px;letter-spacing:1.5px;">
+      <th style="text-align:left;padding:8px 6px;">Name</th>
+      <th style="text-align:left;padding:8px 6px;">Category</th>
+      <th style="text-align:left;padding:8px 6px;">Base Price</th>
+      <th style="text-align:left;padding:8px 6px;">Elasticity</th>
+      <th style="text-align:left;padding:8px 6px;">Base Demand</th>
+      <th style="text-align:left;padding:8px 6px;">Price Range</th>
+      <th style="text-align:left;padding:8px 6px;"></th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
 }
 
-function initAgentBarChart() {
-  makeChart('chartAgentBar',{
-    type:'bar',
-    data:{
-      labels: AGENTS.map(a=>a.name),
-      datasets:[{
-        label:'Mean Reward',
-        data: AGENTS.map(a=>a.reward),
-        backgroundColor: AGENTS.map(a=>AGENT_COLORS[a.name]+'99'),
-        borderColor: AGENTS.map(a=>AGENT_COLORS[a.name]),
-        borderWidth:2, borderRadius:6,
+// ── Overview comparison chart ─────────────────────────────────────────────────
+async function renderCompChart() {
+  const data = await apiFetch('/summary');
+  const agents  = Object.keys(data.agents);
+  const means   = agents.map(a => data.agents[a].mean_reward);
+  const stds    = agents.map(a => data.agents[a].std_reward);
+  const colors  = agents.map(a => AGENT_COLORS[a.toLowerCase()] || '#6b7280');
+
+  if (compChart) compChart.destroy();
+  compChart = new Chart(document.getElementById('compChart'), {
+    type: 'bar',
+    data: {
+      labels: agents,
+      datasets: [{
+        data: means,
+        backgroundColor: colors.map(c => c + '99'),
+        borderColor: colors,
+        borderWidth: 2,
+        borderRadius: 6,
+        errorBars: Object.fromEntries(agents.map((a,i) => [a, {plus: stds[i], minus: stds[i]}])),
       }]
     },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{display:false}},
-      scales:{
-        x:{grid:{display:false}},
-        y:{grid:{color:'#1a2030'},min:0,max:1,title:{display:true,text:'Mean Reward'}}
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const std = stds[ctx.dataIndex];
+              return `Mean: ${ctx.raw.toFixed(2)} ± ${std.toFixed(2)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#6b6b80', font: {family: 'Space Mono', size: 11} },
+             grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: '#6b6b80', font: {family: 'Space Mono', size: 11} },
+             grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: false, min: 10 }
       }
     }
   });
 }
 
-function initPerProductChart() {
-  const products = PRODUCTS.slice(0,9).map(p=>p.id);
-  makeChart('chartPerProduct',{
-    type:'bar',
-    data:{
-      labels: products,
-      datasets:[
-        {label:'MAML', data:products.map(()=>+(0.78+Math.random()*0.14).toFixed(3)),
-          backgroundColor:ACCENT+'88', borderColor:ACCENT, borderWidth:1.5, borderRadius:4},
-        {label:'DQN',  data:products.map(()=>+(0.65+Math.random()*0.16).toFixed(3)),
-          backgroundColor:PURPLE+'88', borderColor:PURPLE, borderWidth:1.5, borderRadius:4},
-        {label:'RuleBased', data:products.map(()=>+(0.45+Math.random()*0.14).toFixed(3)),
-          backgroundColor:YELLOW+'88', borderColor:YELLOW, borderWidth:1.5, borderRadius:4},
-      ]
-    },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{position:'bottom',labels:{boxWidth:10}}},
-      scales:{
-        x:{grid:{display:false}},
-        y:{grid:{color:'#1a2030'},min:0,max:1}
-      }
-    }
-  });
-}
+// ── Simulation ────────────────────────────────────────────────────────────────
+async function runSimulation() {
+  const pid   = document.getElementById('sim-product').value;
+  const agent = document.getElementById('sim-agent').value;
+  const btn   = document.getElementById('sim-btn');
+  const spin  = document.getElementById('sim-spinner');
 
-function initAgentDetailTable() {
-  const tbody = document.getElementById('agentDetailBody');
-  const TYPES = {MAML:'Meta-RL',Optimal:'Oracle',DQN:'Deep RL',RuleBased:'Heuristic',Fixed:'Baseline',Random:'Baseline'};
-  tbody.innerHTML = AGENTS.map((a,i)=>`
-    <tr>
-      <td><span class="rank-badge rank-${i<3?i+1:'other'}">${i+1}</span></td>
-      <td style="font-weight:600;color:${AGENT_COLORS[a.name]}">${a.name}</td>
-      <td style="font-family:var(--mono)">${a.reward.toFixed(4)}</td>
-      <td style="font-family:var(--mono);color:var(--muted)">±${a.std.toFixed(4)}</td>
-      <td><span style="font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:4px;background:${AGENT_COLORS[a.name]}22;color:${AGENT_COLORS[a.name]}">${a.type}</span></td>
-      <td style="color:var(--muted);font-size:12px">${a.notes}</td>
-    </tr>`).join('');
-}
+  btn.disabled = true; spin.style.display = 'inline-block';
 
-function initProductsGrid() {
-  const grid = document.getElementById('productsGrid');
-  grid.innerHTML = PRODUCTS.map((p,i)=>`
-    <div class="product-card${p.status==='held-out'?' sel':''}" onclick="selectProduct(${i})" id="pcard-${i}">
-      <div class="p-name">${p.name}</div>
-      <div class="p-cat">${p.cat}${p.status==='held-out'?' · 🔒 held-out':''}</div>
-      <div class="p-price">$${p.price}</div>
-    </div>`).join('');
-}
+  try {
+    const res = await apiFetch('/simulate', {
+      method: 'POST',
+      body: JSON.stringify({ product_id: pid, agent_type: agent })
+    });
 
-let demandChart = null;
-function selectProduct(i) {
-  document.querySelectorAll('.product-card').forEach(c=>c.classList.remove('sel'));
-  document.getElementById('pcard-'+i).classList.add('sel');
-  const p = PRODUCTS[i];
-  document.getElementById('productDetailBody').innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div><div class="kpi-label">ID</div><div style="font-family:var(--mono);color:var(--accent);margin-top:4px">${p.id}</div></div>
-      <div><div class="kpi-label">Category</div><div style="margin-top:4px">${p.cat}</div></div>
-      <div><div class="kpi-label">Base Price</div><div style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--accent);margin-top:4px">$${p.price}</div></div>
-      <div><div class="kpi-label">Elasticity</div><div style="font-family:var(--mono);font-size:20px;font-weight:700;color:${p.elasticity<-1.5?'var(--red)':'var(--yellow)'};margin-top:4px">${p.elasticity}</div></div>
-      <div><div class="kpi-label">Status</div><div style="margin-top:4px"><span style="font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:4px;background:${p.status==='held-out'?'rgba(239,68,68,0.15)':'rgba(34,197,94,0.15)'};color:${p.status==='held-out'?'var(--red)':'var(--green)'}">${p.status}</span></div></div>
-      <div><div class="kpi-label">Max Inventory</div><div style="font-family:var(--mono);margin-top:4px">2,000</div></div>
-    </div>`;
+    simSteps = res.steps;
 
-  // Demand curve
-  if(demandChart) demandChart.destroy();
-  const prices = Array.from({length:11},(_,j)=>p.price*(0.7+j*0.06));
-  const demand = prices.map(pr=>Math.max(0,1000*Math.exp(p.elasticity*Math.log(pr/p.price))));
-  const canvas = document.getElementById('chartDemand');
-  demandChart = new Chart(canvas.getContext('2d'),{
-    type:'line',
-    data:{labels:prices.map(v=>'$'+v.toFixed(0)), datasets:[{
-      label:'Demand', data:demand,
-      borderColor:ACCENT, backgroundColor:'rgba(0,229,255,0.07)',
-      fill:true, borderWidth:2, tension:0.4, pointRadius:3,
-    }]},
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{display:false}},
-      scales:{
-        x:{grid:{color:'#1a2030'},title:{display:true,text:'Price'}},
-        y:{grid:{color:'#1a2030'},title:{display:true,text:'Units Demanded'}}
-      }
-    }
-  });
-}
+    // KPIs
+    const avgPrice = simSteps.reduce((s,d) => s+d.price, 0) / simSteps.length;
+    document.getElementById('sim-reward').textContent   = res.total_reward.toFixed(2);
+    document.getElementById('sim-revenue').textContent  = '$' + res.total_revenue.toLocaleString();
+    document.getElementById('sim-avg-price').textContent = '$' + avgPrice.toFixed(2);
+    document.getElementById('sim-agent-name').textContent = agent.toUpperCase();
+    document.getElementById('sim-product-name').textContent = res.product.name;
 
-function initAdaptChart() {
-  const maml = genAdaptCurve(0.65, 0.821, 10, 0.02);
-  const dqn  = genAdaptCurve(0.18, 0.312, 10, 0.05);
-  const eps  = Array.from({length:10},(_,i)=>i+1);
-  makeChart('chartAdapt',{
-    type:'line',
-    data:{labels:eps, datasets:[
-      {label:'MAML (meta-pretrained)', data:maml, borderColor:ACCENT, backgroundColor:'rgba(0,229,255,0.08)', fill:true, borderWidth:2.5, tension:0.4, pointRadius:4, pointBackgroundColor:ACCENT},
-      {label:'DQN (from scratch)',     data:dqn,  borderColor:RED,   backgroundColor:'rgba(239,68,68,0.05)', fill:true, borderWidth:2, tension:0.3, pointRadius:4, pointBackgroundColor:RED, borderDash:[5,3]},
-    ]},
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{legend:{position:'bottom',labels:{boxWidth:10}}},
-      scales:{
-        x:{grid:{color:'#1a2030'},title:{display:true,text:'Adaptation Episode'}},
-        y:{grid:{color:'#1a2030'},min:0,max:1,title:{display:true,text:'Eval Reward'}}
-      }
-    }
-  });
+    // Chart
+    const labels = simSteps.map(d => 'D' + d.day);
+    const prices  = simSteps.map(d => d.price);
+    const revs    = simSteps.map(d => d.revenue);
+    const color   = AGENT_COLORS[agent] || '#7c5cfc';
 
-  // Episode bars
-  const body = document.getElementById('adaptBarsBody');
-  const maxV = Math.max(...maml,...dqn);
-  body.innerHTML = eps.map((e,i)=>`
-    <div class="adapt-row">
-      <div class="adapt-label">Episode ${e}</div>
-      <div style="flex:1">
-        <div style="font-family:var(--mono);font-size:10px;color:var(--accent);margin-bottom:2px">MAML</div>
-        <div class="adapt-bar-wrap"><div class="adapt-bar" style="width:${(maml[i]/maxV*100).toFixed(1)}%;background:linear-gradient(90deg,${ACCENT},${ACCENT}88)"></div></div>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--red);margin:4px 0 2px">DQN</div>
-        <div class="adapt-bar-wrap"><div class="adapt-bar" style="width:${(dqn[i]/maxV*100).toFixed(1)}%;background:linear-gradient(90deg,${RED},${RED}88)"></div></div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:8px;margin-left:10px">
-        <div class="adapt-val" style="color:var(--accent)">${maml[i].toFixed(3)}</div>
-        <div class="adapt-val" style="color:var(--red)">${dqn[i].toFixed(3)}</div>
-      </div>
-    </div>`).join('');
-}
-
-// ─── PAGE ROUTING ────────────────────────────────────────────
-const PAGES = ['overview','training','agents','products','adaptation','predict'];
-let currentPage = 'overview';
-
-function setPage(id) {
-  PAGES.forEach(p=>document.getElementById('page-'+p).style.display='none');
-  document.getElementById('page-'+id).style.display='block';
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-  event.currentTarget.classList.add('active');
-  currentPage = id;
-}
-
-function setTab(el, panelId) {
-  el.closest('.panel').querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
-  el.classList.add('active');
-  el.closest('.panel').querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
-  document.getElementById(panelId).classList.add('active');
-}
-
-// ─── SIMULATIONS ─────────────────────────────────────────────
-function simulateRun() {
-  const btn = event.currentTarget;
-  btn.disabled = true; btn.textContent = '⏳ Running…';
-  setTimeout(()=>{ btn.disabled=false; btn.innerHTML='▶ Run Pipeline'; }, 3000);
-}
-
-let trainInterval = null;
-const LOG_LINES = [
-  '[MAIN] Building dataset... 10 products × 1095 days',
-  '[DATA] Generating synthetic pricing data...',
-  '[OK] Dataset ready → data/processed/',
-  '[STEP 2] Training DQN per product (baseline)',
-  '[DQN] P001 ep 50/600 ε=0.774 reward=0.312',
-  '[DQN] P001 ep 100/600 ε=0.599 reward=0.441',
-  '[DQN] P001 ep 200/600 ε=0.359 reward=0.589',
-  '[DQN] P001 ep 400/600 ε=0.129 reward=0.703',
-  '[DQN] P001 ep 600/600 ε=0.050 reward=0.754',
-  '[OK] DQN P001 complete → results/models/dqn_P001.pt',
-  '[STEP 3] Meta-training MAML (general-purpose agent)',
-  '[MAML] Iter 50/500 meta_loss=0.821 avg_reward=0.423',
-  '[MAML] Iter 100/500 meta_loss=0.644 avg_reward=0.561',
-  '[MAML] Iter 200/500 meta_loss=0.412 avg_reward=0.687',
-  '[MAML] Iter 500/500 meta_loss=0.201 avg_reward=0.847',
-  '[OK] MAML saved → results/models/maml_meta_policy.pt',
-  '[STEP 4] Evaluating all agents on 9 products...',
-  '[EVAL] MAML mean_reward=0.847 std=0.043',
-  '[EVAL] DQN  mean_reward=0.754 std=0.081',
-  '[STEP 5] General-Purpose Adaptation Demo',
-  '[ADAPT] Product P010 (held-out) — never seen during meta-training',
-  '[ADAPT] MAML ep 5 eval_r=0.791',
-  '[ADAPT] MAML ep 10 eval_r=0.821',
-  '[MAIN] Done. All results in ./results/',
-];
-
-function simulateTrain() {
-  if(trainInterval) return;
-  const btn = document.getElementById('trainBtn');
-  const log = document.getElementById('trainLog');
-  const badge = document.getElementById('log-status');
-  btn.disabled=true; badge.textContent='RUNNING'; badge.style.background='rgba(34,197,94,0.15)'; badge.style.color='var(--green)';
-  log.innerHTML='';
-  let i=0;
-  trainInterval = setInterval(()=>{
-    if(i>=LOG_LINES.length){ clearInterval(trainInterval); trainInterval=null; btn.disabled=false; badge.textContent='DONE'; return; }
-    const cls = LOG_LINES[i].startsWith('[OK]')?'ok':LOG_LINES[i].startsWith('[MAIN]')||LOG_LINES[i].startsWith('[STEP')?'info':LOG_LINES[i].startsWith('[MAML]')||LOG_LINES[i].startsWith('[DQN]')||LOG_LINES[i].startsWith('[EVAL]')||LOG_LINES[i].startsWith('[ADAPT]')?'warn':'';
-    log.innerHTML += `<p class="log-line ${cls}">${LOG_LINES[i]}</p>`;
-    log.scrollTop = log.scrollHeight;
-    i++;
-  }, 220);
-}
-
-
-// ─── PREDICTION ENGINE ────────────────────────────────────────
-
-// Category → elasticity mapping (mirrors your data_pipeline logic)
-const CAT_ELASTICITY = {
-  Electronics: -1.4,
-  Sports:      -2.0,
-  Grocery:     -0.9,
-  Furniture:   -1.4,
-  Books:       -1.6,
-  Appliances:  -1.7,
-  Fashion:     -1.3,
-  Other:       -1.5,
-};
-
-const CAT_HINTS = {
-  Electronics: 'Moderate elasticity · price-sensitive but brand loyal',
-  Sports:      'High elasticity · shoppers compare prices actively',
-  Grocery:     'Low elasticity · demand stays stable across prices',
-  Furniture:   'Moderate elasticity · considered purchase, less frequent',
-  Books:       'Moderate-high elasticity · many substitutes available',
-  Appliances:  'High elasticity · buyers wait for deals',
-  Fashion:     'Moderate elasticity · trend and brand drive demand',
-  Other:       'Average elasticity assumed',
-};
-
-function onCatChange() {
-  const cat = document.getElementById('inp-cat').value;
-  const hint = document.getElementById('cat-hint');
-  hint.textContent = cat ? CAT_HINTS[cat] : 'Category determines demand elasticity used by the agent.';
-  clearResult();
-}
-
-function clearResult() {
-  // only reset if there's a real result showing
-  const r = document.getElementById('predict-results');
-  if (r.querySelector('.result-hero')) {
-    r.innerHTML = `<div class="empty-state">
-      <div class="es-icon">🤖</div>
-      <div class="es-text">MAML agent ready</div>
-      <div class="es-sub">Fill in the form and click "Get Optimal Price"</div>
-    </div>`;
-  }
-}
-
-// Core MAML simulation:
-// 1. Build the 10-feature state vector (mirrors pricing_env.py)
-// 2. Evaluate all 11 price levels via the demand/revenue model
-// 3. Pick the level that maximises normalised reward
-// 4. Add MAML adaptation noise (small, converging) to simulate meta-policy
-function buildState(price, basePrice, inventory, dow, compPrice, elasticity) {
-  const maxInv = 2000;
-  const normPrice     = price / (basePrice * 2);           // feature 0
-  const normInv       = inventory / maxInv;                // feature 1
-  const normDow       = dow / 7;                           // feature 2
-  const priceRatio    = price / basePrice;                 // feature 3
-  const invRatio      = inventory / maxInv;                // feature 4
-  const compRatio     = compPrice ? price / compPrice : 1; // feature 5
-  const demandSignal  = Math.exp(elasticity * Math.log(Math.max(priceRatio,0.01))); // feature 6
-  const revenueSignal = priceRatio * demandSignal;         // feature 7
-  const urgency       = 1 - normInv;                      // feature 8 (sell urgency)
-  const weekendFlag   = dow >= 6 ? 1 : 0;                 // feature 9
-  return [normPrice, normInv, normDow, priceRatio, invRatio, compRatio, demandSignal, revenueSignal, urgency, weekendFlag];
-}
-
-function simulateMAML(basePrice, inventory, elasticity, compPrice, dow) {
-  const N_LEVELS = 11;
-  const maxInv = 2000;
-
-  // Price levels: 0.7× to 1.3× base, evenly spaced (mirrors SingleProductPricingEnv)
-  const levels = Array.from({length: N_LEVELS}, (_, i) => basePrice * (0.7 + i * 0.06));
-
-  // Score each price level
-  const scores = levels.map((p, lvl) => {
-    const state = buildState(p, basePrice, inventory, dow, compPrice, elasticity);
-
-    // Demand at this price (elasticity model)
-    const demand = Math.max(0, 1000 * Math.exp(elasticity * Math.log(Math.max(p / basePrice, 0.01))));
-    const actualSold = Math.min(demand / 30, inventory); // episode_len = 30
-    const revenue = p * actualSold;
-
-    // Inventory pressure: penalise if inventory is critically low or very high
-    const invPressure = inventory < 50 ? -0.15 : inventory > 1800 ? 0.05 : 0;
-
-    // Competitor pressure
-    const compBonus = compPrice && p < compPrice ? 0.08 : compPrice && p > compPrice * 1.2 ? -0.06 : 0;
-
-    // Weekend uplift
-    const weekendBoost = dow >= 6 ? 0.04 : 0;
-
-    // Normalised reward (mirrors normalize_reward=True in env)
-    const maxRevenue = basePrice * 1.3 * (1000 / 30);
-    const normRevenue = revenue / maxRevenue;
-
-    // MAML meta-policy: simulate Q-values with slight learned bias toward
-    // high-demand + healthy-margin combinations (what MAML would have learned)
-    const mamlBias = 0.05 * state[7]; // reward signal feature
-    const qValue = normRevenue + invPressure + compBonus + weekendBoost + mamlBias;
-
-    return { lvl, price: p, demand, actualSold, revenue, normRevenue, qValue };
-  });
-
-  // Pick best action (argmax Q)
-  scores.sort((a, b) => b.qValue - a.qValue);
-  const best = scores[0];
-  scores.sort((a, b) => a.lvl - b.lvl); // restore order
-
-  return { best, levels, scores };
-}
-
-let predChart = null;
-
-function runPrediction() {
-  const name     = document.getElementById('inp-name').value.trim();
-  const cat      = document.getElementById('inp-cat').value;
-  const price    = parseFloat(document.getElementById('inp-price').value);
-  const inv      = parseFloat(document.getElementById('inp-inv').value);
-  const dow      = parseInt(document.getElementById('inp-dow').value);
-  const compRaw  = document.getElementById('inp-comp').value;
-  const compPrice= compRaw ? parseFloat(compRaw) : null;
-
-  // Validation
-  if (!name)            return flash('inp-name',    'Enter a product name');
-  if (!cat)             return flash('inp-cat',     'Select a category');
-  if (!price || price<=0) return flash('inp-price', 'Enter a valid price');
-  if (isNaN(inv) || inv<0) return flash('inp-inv', 'Enter a valid inventory count');
-
-  const elasticity = CAT_ELASTICITY[cat] || -1.5;
-  const { best, levels, scores } = simulateMAML(price, inv, elasticity, compPrice, dow);
-
-  const delta = best.price - price;
-  const deltaPct = ((delta / price) * 100).toFixed(1);
-  const action = delta > price * 0.03 ? 'raise' : delta < -price * 0.03 ? 'lower' : 'keep';
-  const actionText = { raise:'↑ Raise price', lower:'↓ Lower price', keep:'→ Keep price' }[action];
-  const actionCls  = 'action-' + action;
-
-  // Demand at current price vs recommended
-  const demandCurrent = Math.max(0, 1000 * Math.exp(elasticity * Math.log(1)));
-  const demandBest    = best.demand;
-  const revCurrent    = price * Math.min(demandCurrent/30, inv);
-  const revBest       = best.revenue;
-  const revLift       = revCurrent > 0 ? (((revBest - revCurrent) / revCurrent) * 100).toFixed(1) : '—';
-
-  // Reasoning bullets
-  const reasons = [];
-  if (action === 'raise') {
-    reasons.push({ icon:'📈', text:'Demand is inelastic enough to absorb a price increase', sub:`Elasticity ${elasticity} → ${Math.abs(elasticity) < 1.5 ? 'low' : 'moderate'} sensitivity` });
-    reasons.push({ icon:'💰', text:'Higher margin outweighs the demand loss at this level', sub:`Revenue ↑ ${revLift}% vs current price` });
-  } else if (action === 'lower') {
-    reasons.push({ icon:'🔻', text:'Demand is elastic — lowering price drives significantly more volume', sub:`Elasticity ${elasticity} → high sensitivity` });
-    reasons.push({ icon:'📦', text:inv > 1200 ? 'High inventory signals need to accelerate sales' : 'Competitive pricing will increase market share', sub:`Inventory: ${inv} units` });
-  } else {
-    reasons.push({ icon:'✅', text:'Current price is near the optimal point on the demand curve', sub:'Small adjustment would not materially improve revenue' });
-  }
-  if (compPrice) {
-    const rel = price < compPrice ? 'below' : price > compPrice ? 'above' : 'equal to';
-    reasons.push({ icon:'🏷️', text:`Your price is ${rel} the competitor's $${compPrice}`, sub: action==='lower'&&price>compPrice?'Recommend closing the gap':'Competitive position factored in' });
-  }
-  if (dow >= 6) reasons.push({ icon:'📅', text:'Weekend demand uplift applied (+4%)', sub:'Higher consumer activity on weekends' });
-
-  // Build price level pills
-  const pillsHTML = scores.map(s => `
-    <div class="price-lvl ${s.lvl === best.lvl ? 'active' : ''}">
-      L${s.lvl}
-      <span class="lvl-price">$${s.price.toFixed(0)}</span>
-    </div>`).join('');
-
-  // Revenue chart data
-  const chartLabels = levels.map(l => '$' + l.toFixed(0));
-  const chartRevenue = scores.map(s => +s.revenue.toFixed(2));
-  const chartColors  = scores.map(s => s.lvl === best.lvl ? ACCENT : PURPLE + '55');
-
-  const dowName = ['','Mon','Tue','Wed','Thu','Fri','Sat','Sun'][dow];
-
-  document.getElementById('predict-results').innerHTML = `
-    <div>
-      <!-- Hero -->
-      <div class="result-hero">
-        <div class="result-label">MAML Recommended Price</div>
-        <div class="result-price">$${best.price.toFixed(2)}</div>
-        <div style="font-family:var(--mono);font-size:13px;color:var(--muted);margin-bottom:8px">
-          Level ${best.lvl}/10 · ${(best.normRevenue*100).toFixed(1)}% normalised reward
-        </div>
-        <span class="result-action ${actionCls}">${actionText} ${delta>=0?'+':''}${deltaPct}%</span>
-      </div>
-
-      <!-- Price level pills -->
-      <div style="margin-bottom:8px;font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:0.1em">PRICE LEVELS (0–10) — RECOMMENDED HIGHLIGHTED</div>
-      <div class="price-levels-row">${pillsHTML}</div>
-
-      <!-- Metrics -->
-      <div class="metrics-grid">
-        <div class="metric-box">
-          <div class="m-label">Est. Daily Revenue</div>
-          <div class="m-val" style="color:var(--green)">$${(best.revenue/30).toFixed(0)}</div>
-        </div>
-        <div class="metric-box">
-          <div class="m-label">Revenue Lift vs Now</div>
-          <div class="m-val" style="color:${parseFloat(revLift)>=0?'var(--green)':'var(--red)'}">
-            ${revLift !== '—' ? (parseFloat(revLift)>=0?'+':'')+revLift+'%' : '—'}
-          </div>
-        </div>
-        <div class="metric-box">
-          <div class="m-label">Est. Units/Episode</div>
-          <div class="m-val">${best.actualSold.toFixed(0)}</div>
-        </div>
-        <div class="metric-box">
-          <div class="m-label">Category Elasticity</div>
-          <div class="m-val" style="color:var(--yellow)">${elasticity}</div>
-        </div>
-      </div>
-
-      <!-- Revenue by price level chart -->
-      <div class="panel" style="margin-bottom:20px">
-        <div class="panel-head">
-          <span class="panel-title">Revenue across all 11 price levels</span>
-          <span class="panel-badge">${name} · ${cat} · ${dowName}</span>
-        </div>
-        <div class="panel-body">
-          <div class="chart-area" style="height:180px">
-            <canvas id="chartPredRevenue" height="180"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <!-- Reasoning -->
-      <div class="reasoning-box">
-        <h4>WHY THIS PRICE — AGENT REASONING</h4>
-        ${reasons.map(r=>`
-          <div class="reason-row">
-            <div class="reason-icon">${r.icon}</div>
-            <div>
-              <div class="reason-text">${r.text}</div>
-              <div class="reason-sub">${r.sub}</div>
-            </div>
-          </div>`).join('')}
-        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-family:var(--mono);font-size:10px;color:var(--muted)">
-          ⚠ Simulation based on elasticity model · Connect Flask API to use real MAML .pt weights
-        </div>
-      </div>
-    </div>`;
-
-  // Draw revenue chart
-  if (predChart) predChart.destroy();
-  setTimeout(() => {
-    const el = document.getElementById('chartPredRevenue');
-    if (!el) return;
-    predChart = new Chart(el.getContext('2d'), {
-      type: 'bar',
+    if (simChart) simChart.destroy();
+    simChart = new Chart(document.getElementById('simChart'), {
       data: {
-        labels: chartLabels,
-        datasets: [{
-          label: 'Est. Revenue (episode)',
-          data: chartRevenue,
-          backgroundColor: chartColors,
-          borderColor: scores.map(s => s.lvl === best.lvl ? ACCENT : 'transparent'),
-          borderWidth: 2,
-          borderRadius: 5,
-        }]
+        labels,
+        datasets: [
+          {
+            type: 'line', label: 'Price',
+            data: prices, borderColor: color,
+            backgroundColor: 'transparent',
+            tension: 0.3, pointRadius: 3, yAxisID: 'y',
+          },
+          {
+            type: 'bar', label: 'Revenue',
+            data: revs,
+            backgroundColor: color + '40',
+            borderColor: color + '80',
+            borderWidth: 1, yAxisID: 'y2',
+          }
+        ]
       },
       options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#6b6b80', font: {family:'Space Mono',size:10} } } },
         scales: {
-          x: { grid: { display: false } },
-          y: { grid: { color: '#1a2030' }, title: { display: true, text: 'Revenue ($)' } }
+          x: { ticks: { color:'#6b6b80', font:{family:'Space Mono',size:9} }, grid:{color:'rgba(255,255,255,0.04)'} },
+          y:  { position:'left',  ticks:{color:'#6b6b80',font:{family:'Space Mono',size:9}}, grid:{color:'rgba(255,255,255,0.04)'}, title:{display:true,text:'Price',color:'#6b6b80',font:{family:'Space Mono',size:9}} },
+          y2: { position:'right', ticks:{color:'#6b6b80',font:{family:'Space Mono',size:9}}, grid:{display:false}, title:{display:true,text:'Revenue',color:'#6b6b80',font:{family:'Space Mono',size:9}} },
         }
       }
     });
-  }, 50);
+
+    // Heatmap
+    buildTimeline(simSteps, color);
+
+    document.getElementById('sim-results').style.display = 'flex';
+    toast('Episode complete ✓');
+  } catch(e) {
+    toast('Error: ' + e.message);
+  } finally {
+    btn.disabled = false; spin.style.display = 'none';
+  }
 }
 
-function flash(id, msg) {
-  const el = document.getElementById(id);
-  el.style.borderColor = 'var(--red)';
-  el.style.boxShadow = '0 0 0 2px rgba(239,68,68,0.2)';
-  el.placeholder = msg;
-  setTimeout(() => {
-    el.style.borderColor = '';
-    el.style.boxShadow = '';
-    el.placeholder = '';
-  }, 2000);
+function buildTimeline(steps, color) {
+  const maxRev = Math.max(...steps.map(s => s.revenue));
+  const tl = document.getElementById('sim-timeline');
+  tl.innerHTML = steps.map((s, i) => {
+    const h = Math.round((s.revenue / maxRev) * 100);
+    return `<div class="day-cell" id="dc-${i}" onclick="showDay(${i})" title="Day ${s.day}">
+      <div class="day-bar" style="height:${h}%;background:${color}99;"></div>
+    </div>`;
+  }).join('');
 }
 
-window.addEventListener('load', ()=>{
-  initDQNChart();
-  initMAMLChart();
-  initPriceChart();
-  initAgentTable();
-  initAgentBarChart();
-  initPerProductChart();
-  initAgentDetailTable();
-  initProductsGrid();
-  initAdaptChart();
-  selectProduct(9); // show held-out product by default
-});
+function showDay(i) {
+  document.querySelectorAll('.day-cell').forEach(c => c.classList.remove('active'));
+  document.getElementById('dc-' + i)?.classList.add('active');
+  const s = simSteps[i];
+  const info = document.getElementById('day-info');
+  info.style.display = 'grid';
+  info.innerHTML = `
+    <div><div class="di-label">Day</div><div class="di-value">${s.day} / 30</div></div>
+    <div><div class="di-label">Price</div><div class="di-value">$${s.price}</div></div>
+    <div><div class="di-label">Demand</div><div class="di-value">${s.demand}</div></div>
+    <div><div class="di-label">Units Sold</div><div class="di-value">${s.units_sold}</div></div>
+    <div><div class="di-label">Revenue</div><div class="di-value">$${s.revenue.toLocaleString()}</div></div>
+    <div><div class="di-label">Inventory</div><div class="di-value">${s.inventory}</div></div>
+    <div><div class="di-label">Reward</div><div class="di-value">${s.reward}</div></div>
+  `;
+}
+
+// ── Benchmark ─────────────────────────────────────────────────────────────────
+async function runBenchmark() {
+  const pid  = document.getElementById('bench-product').value;
+  const n    = document.getElementById('bench-n').value;
+  const btn  = document.getElementById('bench-btn');
+  const spin = document.getElementById('bench-spinner');
+
+  btn.disabled = true; spin.style.display = 'inline-block';
+
+  try {
+    const res = await apiFetch(`/benchmark/${pid}?n=${n}`);
+    const agents  = Object.keys(res.results);
+    const sorted  = agents.sort((a,b) => res.results[b].mean - res.results[a].mean);
+    const maxMean = Math.max(...agents.map(a => res.results[a].mean + res.results[a].std));
+
+    // Bar display
+    document.getElementById('bench-info').textContent = `${n} episodes evaluated`;
+    document.getElementById('bench-bars').innerHTML = sorted.map(a => {
+      const r = res.results[a];
+      const pct = Math.max(0, (r.mean / maxMean) * 100);
+      const c = AGENT_COLORS[a] || '#6b7280';
+      return `<div class="perf-row">
+        <div class="perf-label">${a.toUpperCase()}</div>
+        <div class="perf-bar-bg">
+          <div class="perf-bar-fill" style="width:${pct}%;background:${c};"></div>
+        </div>
+        <div class="perf-val" style="color:${c}">${r.mean.toFixed(2)}</div>
+      </div>`;
+    }).join('');
+
+    // Chart
+    const colors = sorted.map(a => AGENT_COLORS[a] || '#6b7280');
+    const means  = sorted.map(a => res.results[a].mean);
+    const stds   = sorted.map(a => res.results[a].std);
+
+    if (benchChart) benchChart.destroy();
+    benchChart = new Chart(document.getElementById('benchChart'), {
+      type: 'bar',
+      data: {
+        labels: sorted.map(a => a.toUpperCase()),
+        datasets: [{
+          data: means,
+          backgroundColor: colors.map(c => c + '88'),
+          borderColor: colors, borderWidth: 2, borderRadius: 6,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: (ctx) => `${ctx.raw.toFixed(2)} ± ${stds[ctx.dataIndex].toFixed(2)}` } }
+        },
+        scales: {
+          x: { ticks:{color:'#6b6b80',font:{family:'Space Mono',size:10}}, grid:{color:'rgba(255,255,255,0.04)'} },
+          y: { ticks:{color:'#6b6b80',font:{family:'Space Mono',size:10}}, grid:{color:'rgba(255,255,255,0.04)'} }
+        }
+      }
+    });
+
+    document.getElementById('bench-results').style.display = 'flex';
+    toast('Benchmark complete ✓');
+  } catch(e) {
+    toast('Error: ' + e.message);
+  } finally {
+    btn.disabled = false; spin.style.display = 'none';
+  }
+}
+
+// ── MAML Adapt ────────────────────────────────────────────────────────────────
+async function runAdapt() {
+  const pid  = document.getElementById('adapt-product').value;
+  const n    = document.getElementById('adapt-n').value;
+  const btn  = document.getElementById('adapt-btn');
+  const spin = document.getElementById('adapt-spinner');
+
+  btn.disabled = true; spin.style.display = 'inline-block';
+
+  try {
+    const res = await apiFetch('/adapt', {
+      method: 'POST',
+      body: JSON.stringify({ product_id: pid, n_adapt: parseInt(n) })
+    });
+
+    const rewards = res.rewards;
+    document.getElementById('adapt-ep1').textContent    = rewards[0].toFixed(2);
+    document.getElementById('adapt-final').textContent  = rewards[rewards.length-1].toFixed(2);
+
+    if (adaptChart) adaptChart.destroy();
+    adaptChart = new Chart(document.getElementById('adaptChart'), {
+      type: 'line',
+      data: {
+        labels: rewards.map((_,i) => `Ep ${i+1}`),
+        datasets: [{
+          label: 'MAML Adapted Reward',
+          data: rewards,
+          borderColor: '#7c5cfc',
+          backgroundColor: 'rgba(124,92,252,0.1)',
+          tension: 0.35, fill: true,
+          pointBackgroundColor: rewards.map((r,i) => i===0 ? '#fbbf24' : i===rewards.length-1 ? '#34d399' : '#7c5cfc'),
+          pointRadius: 5,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color:'#6b6b80', font:{family:'Space Mono',size:10} } },
+          tooltip: { callbacks: { label: ctx => `Reward: ${ctx.raw.toFixed(3)}` } }
+        },
+        scales: {
+          x: { ticks:{color:'#6b6b80',font:{family:'Space Mono',size:10}}, grid:{color:'rgba(255,255,255,0.04)'} },
+          y: { ticks:{color:'#6b6b80',font:{family:'Space Mono',size:10}}, grid:{color:'rgba(255,255,255,0.04)'} }
+        }
+      }
+    });
+
+    document.getElementById('adapt-results').style.display = 'flex';
+    toast('Adaptation complete ✓');
+  } catch(e) {
+    toast('Error: ' + e.message);
+  } finally {
+    btn.disabled = false; spin.style.display = 'none';
+  }
+}
+
+// ── Custom product ────────────────────────────────────────────────────────────
+async function registerCustom() {
+  const btn  = document.getElementById('c-btn');
+  const spin = document.getElementById('c-spinner');
+  btn.disabled = true; spin.style.display = 'inline-block';
+
+  const body = {
+    name:        document.getElementById('c-name').value,
+    category:    document.getElementById('c-category').value,
+    base_price:  parseFloat(document.getElementById('c-price').value),
+    base_demand: parseFloat(document.getElementById('c-demand').value),
+    elasticity:  parseFloat(document.getElementById('c-elasticity').value),
+  };
+
+  try {
+    const res = await apiFetch('/products/custom', { method:'POST', body:JSON.stringify(body) });
+    const msg = document.getElementById('custom-msg');
+    const txt = document.getElementById('custom-msg-text');
+    msg.style.display = 'block';
+    txt.innerHTML = `✓ <strong>${res.name}</strong> registered as product ID ${res.id}.
+      You can now select it in Simulate or Benchmark.`;
+    await loadProducts();
+    toast('Product registered! Go to Simulate ▶');
+  } catch(e) {
+    toast('Error: ' + e.message);
+  } finally {
+    btn.disabled = false; spin.style.display = 'none';
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(async () => {
+  await checkConn();
+  await loadProducts();
+  setInterval(checkConn, 15000);
+})();
 </script>
 </body>
 </html>
