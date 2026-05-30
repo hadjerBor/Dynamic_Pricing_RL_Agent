@@ -866,12 +866,10 @@ function buildProductTable() {
 // ── Overview comparison chart ─────────────────────────────────────────────────
 async function renderCompChart() {
   const data = await apiFetch('/summary');
-  // Handle both real results (flat) and paper fallback (nested under .agents)
-  const agentData = data.agents || data;
-  const agents = Object.keys(agentData).filter(k => k !== 'source' && k !== 'warning');
-  const means  = agents.map(a => agentData[a].mean_reward);
-  const stds   = agents.map(a => agentData[a].std_reward);
-  const colors = agents.map(a => AGENT_COLORS[a.toLowerCase()] || '#6b7280');
+  const agents  = Object.keys(data.agents);
+  const means   = agents.map(a => data.agents[a].mean_reward);
+  const stds    = agents.map(a => data.agents[a].std_reward);
+  const colors  = agents.map(a => AGENT_COLORS[a.toLowerCase()] || '#6b7280');
 
   if (compChart) compChart.destroy();
   compChart = new Chart(document.getElementById('compChart'), {
